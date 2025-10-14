@@ -1,9 +1,12 @@
 import unreal
+import os 
 
 class AssetPlacerTool:
     def __init__(self):
         self.selected_spline_actor = None
         self.spline_path = None
+        self.asset_list = [None]
+
 
     def SelectSpline(self):
         # Get the editor actor subsystem
@@ -52,11 +55,36 @@ class AssetPlacerTool:
         
         return spline_path
 
-    def SetAssetList(self):
-        #User Input a list of Asset files
-        #Check if inputted files are .uasset, .obj, .fbx
-        #Store Asset file list
-        pass
+    def AddAssetsFromContent(self):
+        # --- User Input a list of Asset files
+        # --- Check if inputted files are .uasset, .obj, .fbx
+        # --- Store Asset file list
+
+        # From Content Browser
+        selected_assets = unreal.EditorUtilityLibrary.get_selected_assets()
+
+        if not selected_assets:
+            unreal.log_warning("no asset selected in content browser")
+            return
+            
+        for asset in selected_assets:
+            self.asset_list.append(asset)
+            unreal.log(f"Added Asset: {asset.get_name()}")
+        
+        unreal.log(f"Total Assets in List: {len(self.asset_list)}")
+
+    '''def AddAssetsFromDisk(self, destination_path = "/Game/ImportedAssets"):
+        
+        Opens an import file dialog (system dialog) and imports picked files into 'destination_path'.
+        yje function uses AssetTools.import_assets_with_dialog(...) and returns the
+        imported Uobject assets which are appended to self.asset_list.
+
+        destination_path: package path in the Content Browser
+        '''
+
+
+
+        
 
     def SetParameters(self):
         #For each Asset in Asset List
@@ -198,3 +226,5 @@ Tool.spline_path = Tool.GetSplinePath()
 
 for point in Tool.spline_path:
     unreal.log(str(point))
+
+Tool.AddAssetsFromContent()
