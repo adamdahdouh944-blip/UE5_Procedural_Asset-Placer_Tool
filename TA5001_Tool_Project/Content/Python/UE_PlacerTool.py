@@ -1,4 +1,5 @@
 import unreal
+from UE_PlacerTool_UI import AssetPlacerToolWindow
 import os 
 
 class AssetPlacerTool:
@@ -25,7 +26,7 @@ class AssetPlacerTool:
             if spline_components:
                 self.selected_spline_actor = actor
                 unreal.log(f"Stored SplineComponent: {actor.get_name()}")
-                return
+                return actor
         
         # If none matched
         unreal.log_warning("No SplineComponent found among selected actors.")

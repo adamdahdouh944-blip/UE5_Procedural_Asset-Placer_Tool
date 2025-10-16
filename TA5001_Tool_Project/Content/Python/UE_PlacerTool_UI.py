@@ -1,6 +1,8 @@
 import unreal 
 import sys
+#from UE_PlacerTool import AssetPlacerTool
 from functools import partial
+from PySide6.QtGui import QPalette, QColor
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import (QApplication, QWidget, QDockWidget, 
     QMainWindow, QPushButton, QVBoxLayout, QListWidget, QLabel, 
@@ -14,7 +16,7 @@ class AssetPlacerToolWindow(QWidget):
             self.mainwindow = QMainWindow()
             self.mainwindow.setParent(self)
             self.mainwindow.setLayout(QVBoxLayout())
-            self.mainwindow.setFixedSize(500, 500)
+            self.mainwindow.setFixedSize(600, 500)
 
             # --- LEFT DOCK ---
             self.Left_Dock = QDockWidget(self)
@@ -34,7 +36,7 @@ class AssetPlacerToolWindow(QWidget):
             #Selected Spline Button
             self.SplineButton = QPushButton("<none>")
             self.SplineButton.setStyleSheet("text-align: left; padding: 4px;")
-            #self.SplineButton.clicked.connect(self.OnSelectSplineClick())
+            self.SplineButton.clicked.connect(self.OnSelectSplineClick)
 
             #Left Dock Layout
             header_row = QWidget()
@@ -59,18 +61,17 @@ class AssetPlacerToolWindow(QWidget):
             #Asset List Widget
             self.AssetList_Widget = QListWidget()
             self.AssetList_Widget.setMinimumWidth(200)
-            self.AssetList_Widget.addItem("Add Asset File...")
 
             #Add File Button
             self.AddFileButton = QPushButton("+")
             self.AddFileButton.setFixedWidth(25)
-            #self.AddFileButton.clicked.connect(self.OnAddFile)
+            self.AddFileButton.clicked.connect(self.OnAddFile)
 
             #Remove File Button
             self.RemoveFileButton = QPushButton("-")
             self.RemoveFileButton.setFixedWidth(25)
             self.RemoveFileButton.setVisible(False)
-            #self.RemoveFileButton.clicked.connect(self.OnRemoveFile)
+            self.RemoveFileButton.clicked.connect(self.OnRemoveFile)
 
             #Right Side Button Column
             button_column = QVBoxLayout()
@@ -113,7 +114,37 @@ class AssetPlacerToolWindow(QWidget):
             self.Quantity_spin = QSpinBox()
             self.Quantity_spin.setFixedSize(50, 20)
             self.Quantity_spin.setButtonSymbols(self.Quantity_spin.ButtonSymbols.NoButtons)
-            Form.addRow("Quantity:", self.Quantity_spin)
+            self.Quantity_spin.setRange(0, 10000)
+
+            #Quantity - Secondary "Max" box (hidden until range checked)
+            self.Quantity_spin_max = QSpinBox()
+            self.Quantity_spin_max.setFixedSize(50, 20)
+            self.Quantity_spin_max.setButtonSymbols(self.Quantity_spin_max.ButtonSymbols.NoButtons)
+            self.Quantity_spin_max.setVisible(False)
+
+            #Quantity - Range CheckBox
+            self.Quantity_Range_Checkbox = QCheckBox("Range")
+            self.Quantity_Range_Checkbox.setFixedHeight(20)
+
+            #Layout for Quantity Row
+            Quantity_row = QWidget()
+            Quantity_layout = QHBoxLayout()
+            Quantity_layout.setContentsMargins(0, 0, 0, 0)
+            Quantity_layout.setSpacing(6)
+
+            Quantity_layout.addWidget(self.Quantity_spin)
+            Quantity_layout.addWidget(self.Quantity_spin_max)
+            Quantity_layout.addWidget(self.Quantity_Range_Checkbox)
+            Quantity_layout.addStretch(1)
+            Quantity_row.setLayout(Quantity_layout)
+
+            #Connect Quantity Range checkbox toggle
+            self.Quantity_Range_Checkbox.stateChanged.connect(
+                lambda checked: self.Quantity_spin_max.setVisible(checked)
+            )
+
+            #Add Quantity to Parameters Format
+            Form.addRow("Quantity:", Quantity_row)
 
             #Spacing
             self.Spacing_double = QDoubleSpinBox()
@@ -121,13 +152,13 @@ class AssetPlacerToolWindow(QWidget):
             self.Spacing_double.setButtonSymbols(self.Spacing_double.ButtonSymbols.NoButtons)
             self.Spacing_double.setRange(0.00, 10000)
 
-            #Secondary "Max" box (hidden until Range checked)
+            #Spacing - Secondary "Max" box (hidden until Range checked)
             self.Spacing_double_max = QDoubleSpinBox()
             self.Spacing_double_max.setFixedSize(50, 20)
             self.Spacing_double_max.setButtonSymbols(self.Spacing_double_max.ButtonSymbols.NoButtons)
             self.Spacing_double_max.setVisible(False)
 
-            #Range Checkbox
+            #Spacing - Range Checkbox
             self.Spacing_Range_Checkbox = QCheckBox("Range")
             self.Spacing_Range_Checkbox.setFixedHeight(20)
 
@@ -143,7 +174,7 @@ class AssetPlacerToolWindow(QWidget):
             Spacing_Layout.addStretch(1)
             Spacing_Row.setLayout(Spacing_Layout)
 
-            #Connect Range checkbox toggle
+            #Connect Spacing Range checkbox toggle
             self.Spacing_Range_Checkbox.stateChanged.connect(
                 lambda checked: self.Spacing_double_max.setVisible(checked)
             )
@@ -153,53 +184,107 @@ class AssetPlacerToolWindow(QWidget):
 
             #Scale (X, Y, Z)
             self.Scale_x = QDoubleSpinBox()
-            self.Scale_x.setFixedSize(50, 20)
-            self.Scale_x.setButtonSymbols(self.Scale_x.ButtonSymbols.NoButtons)
-
             self.Scale_y = QDoubleSpinBox()
-            self.Scale_y.setFixedSize(50, 20)
-            self.Scale_y.setButtonSymbols(self.Scale_y.ButtonSymbols.NoButtons)
-
             self.Scale_z = QDoubleSpinBox()
-            self.Scale_z.setFixedSize(50, 20)
-            self.Scale_z.setButtonSymbols(self.Scale_z.ButtonSymbols.NoButtons)
+            for s in [self.Scale_x, self.Scale_y, self.Scale_z]:
+                s.setFixedSize(50, 20)
+                s.setButtonSymbols(s.ButtonSymbols.NoButtons)
+                s.setRange(0.01, 100)
+                s.setValue(1.0)
 
+            #Scale Max (hidden until Range checked)
+            self.Scale_x_max = QDoubleSpinBox()
+            self.Scale_y_max = QDoubleSpinBox()
+            self.Scale_z_max = QDoubleSpinBox()
+            for s in [self.Scale_x_max, self.Scale_y_max, self.Scale_z_max]:
+                s.setFixedSize(50, 20)
+                s.setButtonSymbols(s.ButtonSymbols.NoButtons)
+                s.setRange(0.01, 100)
+                s.setValue(1.0)
+
+            #Scale Range Checkbox
+            self.Scale_Range_Checkbox = QCheckBox("Range")
+            self.Scale_Range_Checkbox.setFixedHeight(20)
+
+            #Scale Row (Always Visible)
             Scale_Row = QWidget()
             Scale_Layout = QHBoxLayout()
             Scale_Layout.setContentsMargins(0, 0, 0, 0)
-
-            for s in [self.Scale_x, self.Scale_y, self.Scale_z]:
-                 s.setRange(0.01, 100)
-                 s.setValue(1.0)
+            Scale_Layout.setSpacing(4)
+            for s in [self.Scale_x, self.Scale_y, self.Scale_z, self.Scale_Range_Checkbox]:
                  Scale_Layout.addWidget(s)
-            
-            
             Scale_Row.setLayout(Scale_Layout)
+
+            #Scale Max Row (Hidden Until Range Checked)
+            Scale_max_row = QWidget()
+            Scale_max_layout = QHBoxLayout()
+            Scale_max_layout.setContentsMargins(0, 0, 61, 0)
+            Scale_max_layout.setSpacing(4)
+            for s in [self.Scale_x_max, self.Scale_y_max, self.Scale_z_max]:
+                Scale_max_layout.addWidget(s)
+            Scale_max_row.setLayout(Scale_max_layout)
+            Scale_max_row.setVisible(False)
+
+            #Connect Scale Range Checkbox Toggle
+            self.Scale_Range_Checkbox.stateChanged.connect(
+                lambda checked: Scale_max_row.setVisible(checked)
+            )
+
+            #Add both Scale rows to the form
             Form.addRow("Scale (X/Y/Z):", Scale_Row)
+            Form.addRow("", Scale_max_row)
 
             #Rotation (X, Y, Z)
             self.Rotation_x = QDoubleSpinBox()
-            self.Rotation_x.setFixedSize(50, 20)
-            self.Rotation_x.setButtonSymbols(self.Rotation_x.ButtonSymbols.NoButtons)
-
             self.Rotation_y = QDoubleSpinBox()
-            self.Rotation_y.setFixedSize(50, 20)
-            self.Rotation_y.setButtonSymbols(self.Rotation_y.ButtonSymbols.NoButtons)
-
             self.Rotation_z = QDoubleSpinBox()
-            self.Rotation_z.setFixedSize(50, 20)
-            self.Rotation_z.setButtonSymbols(self.Rotation_z.ButtonSymbols.NoButtons)
+            for r in [self.Rotation_x, self.Rotation_y, self.Rotation_z]:
+                r.setFixedSize(50, 20)
+                r.setButtonSymbols(r.ButtonSymbols.NoButtons)
+                r.setRange(-360, 360)
+                r.setValue(0)
+            
+            #Rotation Max (hidden until Range Checked)
+            self.Rotation_x_max = QDoubleSpinBox()
+            self.Rotation_y_max = QDoubleSpinBox()
+            self.Rotation_z_max = QDoubleSpinBox()
+            for r in [self.Rotation_x_max, self.Rotation_y_max, self.Rotation_z_max]:
+                r.setFixedSize(50, 20)
+                r.setButtonSymbols(r.ButtonSymbols.NoButtons)
+                r.setRange(-360, 360)
+                r.setValue(0)
 
+            #Range Checkbox
+            self.Rotation_Range_Checkbox = QCheckBox("Range")
+            self.Rotation_Range_Checkbox.setFixedHeight(20)
+
+            #Rotation Row (Always Visible)
             Rotation_Row = QWidget()
             Rotation_Layout = QHBoxLayout()
             Rotation_Layout.setContentsMargins(0, 0, 0, 0)
-
-            for r in [self.Rotation_x, self.Rotation_y, self.Rotation_z]:
-                 r.setRange(-360, 360)
+            Rotation_Layout.setSpacing(4)
+            for r in [self.Rotation_x, self.Rotation_y, self.Rotation_z, self.Rotation_Range_Checkbox]:
                  Rotation_Layout.addWidget(r)
-
             Rotation_Row.setLayout(Rotation_Layout)
+
+            #Rotation Max Row (Hidden Until Range Checked)
+            Rotation_max_row = QWidget()
+            Rotation_max_layout = QHBoxLayout()
+            Rotation_max_layout.setContentsMargins(0, 0, 61, 0)
+            Rotation_max_layout.setSpacing(4)
+            for r in [self.Rotation_x_max, self.Rotation_y_max, self.Rotation_z_max]:
+                Rotation_max_layout.addWidget(r)
+            Rotation_max_row.setLayout(Rotation_max_layout)
+            Rotation_max_row.setVisible(False)
+
+            #Connect Rotation Range Checkbox Toggle
+            self.Rotation_Range_Checkbox.stateChanged.connect(
+                lambda checked: Rotation_max_row.setVisible(checked)
+            )
+
+            #Add Both Rotation Rows to the Form
             Form.addRow("Rotation (X/Y/Z):", Rotation_Row)
+            Form.addRow("", Rotation_max_row)
 
             #Scatter
             self.Scatter_double = QDoubleSpinBox()
@@ -215,7 +300,7 @@ class AssetPlacerToolWindow(QWidget):
             self.mainwindow.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.Param_Dock)
 
             #Connect Signals: When an Asset is Clicked in Asset List, Update Parameter List
-            #self.AssetList_Widget.currentItemChanged.connect(self.OnAssetSelected(self, self.AssetList_Widget.currentItem))
+            self.AssetList_Widget.currentItemChanged.connect(self.OnAssetSelected)
 
             # ---- BOTTOM DOCK ----
             #Generate, Apply and Cancel Button
@@ -242,8 +327,23 @@ class AssetPlacerToolWindow(QWidget):
             self.mainwindow.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, bottom_dock)
 
     def OnSelectSplineClick(self):
+        # Get the editor actor subsystem
+        editorActorSubsystem = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+        actors = editorActorSubsystem.get_selected_level_actors()
+
+        #If no Actor is selected
+        if not actors:
+            unreal.log_warning("no actors selected in the editor.")
+            return
+        
+        # Loop Through selected actors
+        for actor in actors:
+            # Check if Actor has SplineComponent
+            spline_components = actor.get_components_by_class(unreal.SplineComponent)
+            if spline_components:
+                self.SplineButton.setText(f"{actor.get_name()}")
+        
         unreal.log("Spline Select Button Clicked!")
-        #TODO: Trigger Spline selection or display info
 
     def OnAssetSelected(self, current, previous):
         if current:
@@ -253,9 +353,24 @@ class AssetPlacerToolWindow(QWidget):
     def UpdateRemoveButtonVisibility(self):
         self.RemoveFileButton.setVisible(self.AssetList_Widget.count() > 0)
 
-    def OnAddFile(self, asset):
-        self.AssetList_Widget.addItem(f"{asset}")
-        self.UpdateRemoveButtonVisibility()
+    def OnAddFile(self, selected_assets):
+        selected_assets = unreal.EditorUtilityLibrary.get_selected_assets()
+
+        if not selected_assets:
+            unreal.log_warning("No Asset Selected")
+            return
+        
+        existing_assets = [self.AssetList_Widget.item(i).text() for i in range(self.AssetList_Widget.count())]
+
+        for asset in selected_assets:
+            asset_name = asset.get_name()
+
+            if asset_name in existing_assets:
+                unreal.log_warning(f"Asset {asset_name} Already in Asset List")
+                continue
+            else:
+                self.AssetList_Widget.addItem(asset_name)
+                self.UpdateRemoveButtonVisibility()
 
     def OnRemoveFile(self):
         current = self.AssetList_Widget.currentItem()
@@ -263,18 +378,71 @@ class AssetPlacerToolWindow(QWidget):
             self.AssetList_Widget.takeItem(self.AssetList_Widget.row(current))
         self.UpdateRemoveButtonVisibility()
 
+def apply_unreal_palette(app):
+    palette = QPalette()
 
-         
-        
+    # Base background colors
+    palette.setColor(QPalette.ColorRole.Window, QColor(36, 36, 36))
+    palette.setColor(QPalette.ColorRole.Base, QColor(24, 24, 24))
+    palette.setColor(QPalette.ColorRole.AlternateBase, QColor(42, 42, 42))
+
+    # Text colors
+    palette.setColor(QPalette.ColorRole.Text, QColor(220, 220, 220))
+    palette.setColor(QPalette.ColorRole.WindowText, QColor(230, 230, 230))
+    palette.setColor(QPalette.ColorRole.ButtonText, QColor(230, 230, 230))
+    palette.setColor(QPalette.ColorRole.PlaceholderText, QColor(128, 128, 128))
+
+    # Buttons & highlights
+    palette.setColor(QPalette.ColorRole.Button, QColor(48, 48, 48))
+    palette.setColor(QPalette.ColorRole.Highlight, QColor(0, 120, 215))  # UE Blue
+    palette.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
+
+    # Borders & disabled states
+    palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text, QColor(90, 90, 90))
+    palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, QColor(90, 90, 90))
+
+    app.setPalette(palette)
+     
+def apply_unreal_stylesheet(app):
+    qss = """
+    QWidget {
+        background-color: #242424;
+        color: #E0E0E0;
+        font-family: 'Segoe UI';
+        font-size: 10pt;
+    }
+    QPushButton {
+        background-color: #2A2A2A;
+        border: 1px solid #404040;
+        border-radius: 4px;
+        padding: 4px 10px;
+    }
+    QPushButton:hover {
+        background-color: #0078D7;
+        color: white;
+    }
+    QLineEdit, QSpinBox, QDoubleSpinBox, QListWidget {
+        background-color: #1E1E1E;
+        border: 1px solid #3A3A3A;
+        border-radius: 4px;
+        padding: 2px;
+    }
+    """
+    app.setStyleSheet(qss)
+
 def launchWindow():
-    if QApplication.instance():
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+    else:
         # Id any current instances of tool and destroy
         for win in (QApplication.allWindows()):
             if 'toolWindow' in win.objectName(): # update this name to match name below
                 win.destroy()
-    else:
-        QApplication(sys.argv)
-
+    
+    apply_unreal_palette(app)
+    apply_unreal_stylesheet(app)
+ 
     AssetPlacerToolWindow.window = AssetPlacerToolWindow()
     AssetPlacerToolWindow.window.show()
     AssetPlacerToolWindow.window.setWindowTitle("Procedural Asset Placer Tool")
