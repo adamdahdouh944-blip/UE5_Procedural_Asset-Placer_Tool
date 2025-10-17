@@ -16,7 +16,7 @@ class AssetPlacerToolWindow(QWidget):
             self.mainwindow = QMainWindow()
             self.mainwindow.setParent(self)
             self.mainwindow.setLayout(QVBoxLayout())
-            self.mainwindow.setFixedSize(600, 500)
+            self.mainwindow.setFixedSize(650, 550)
 
             # --- LEFT DOCK ---
             self.Left_Dock = QDockWidget(self)
@@ -29,6 +29,8 @@ class AssetPlacerToolWindow(QWidget):
             Left_Layout.setSpacing(6)
 
             # --- LEFT DOCK LAYOUT (SPLINE & ASSET LIST) ---
+
+            # --- SPLINE ---
             #Spline Widget Header
             SplineWidget_header = QLabel("Current Spline:")
             SplineWidget_header.setStyleSheet("font-weight: bold; font-size: 12pt; padding: 2px;")
@@ -38,6 +40,14 @@ class AssetPlacerToolWindow(QWidget):
             self.SplineButton.setStyleSheet("text-align: left; padding: 4px;")
             self.SplineButton.clicked.connect(self.OnSelectSplineClick)
 
+            #Selected Spline Component
+            self.Selected_Spline = None
+
+            #Selected Spline Path
+            self.Selected_Spline_Path = {}
+
+
+            # --- ASSET LIST ---
             #Left Dock Layout
             header_row = QWidget()
             header_layout = QHBoxLayout()
@@ -109,6 +119,9 @@ class AssetPlacerToolWindow(QWidget):
             qvbox = QVBoxLayout()
 
             # --- PARAMETER PRESETS ----
+
+            #Store Parameters for each asset
+            self.Asset_Parameters = {}
 
             #Quantity
             self.Quantity_spin = QSpinBox()
@@ -302,6 +315,16 @@ class AssetPlacerToolWindow(QWidget):
             #Connect Signals: When an Asset is Clicked in Asset List, Update Parameter List
             self.AssetList_Widget.currentItemChanged.connect(self.OnAssetSelected)
 
+            self.Quantity_spin.valueChanged.connect(self.OnParameterChanged)
+            self.Spacing_double.valueChanged.connect(self.OnParameterChanged)
+            self.Scale_x.valueChanged.connect(self.OnParameterChanged)
+            self.Scale_y.valueChanged.connect(self.OnParameterChanged)
+            self.Scale_z.valueChanged.connect(self.OnParameterChanged)
+            self.Rotation_x.valueChanged.connect(self.OnParameterChanged)
+            self.Rotation_y.valueChanged.connect(self.OnParameterChanged)
+            self.Rotation_z.valueChanged.connect(self.OnParameterChanged)
+            self.Scatter_double.valueChanged.connect(self.OnParameterChanged)
+
             # ---- BOTTOM DOCK ----
             #Generate, Apply and Cancel Button
             self.Bottom_Widget = QWidget()
@@ -341,14 +364,59 @@ class AssetPlacerToolWindow(QWidget):
             # Check if Actor has SplineComponent
             spline_components = actor.get_components_by_class(unreal.SplineComponent)
             if spline_components:
+                self.Selected_Spline = actor
                 self.SplineButton.setText(f"{actor.get_name()}")
         
         unreal.log("Spline Select Button Clicked!")
 
+    def GetSplinePath(self):
+        pass
+
     def OnAssetSelected(self, current, previous):
-        if current:
-            asset_name = current.text()
-            self.Param_header.setText(f"Selected Asset: {asset_name}")
+        if not current:
+            return
+
+        asset_name = current.text()
+        self.Param_header.setText(f"Selected Asset: {asset_name}")
+
+        #Initialise Asset Parameters if new
+        if asset_name not in self.Asset_Parameters:
+            self.Asset_Parameters[asset_name] = {
+                "quantity" : self.Quantity_spin.value(),
+                "spacing" : self.Spacing_double.value(),
+                "scale" : [self.Scale_x.value(), self.Scale_y.value(), self.Scale_z.value()],
+                "rotation" : [self.Rotation_x.value(), self.Rotation_y.value(), self.Rotation_z.value()],
+                "scatter" : self.Scatter_double.value()
+            }
+        
+        #Load stored parameters into the UI
+        params = self.Asset_Parameters[asset_name]
+        self.Quantity_spin.setValue(params["quantity"])
+        self.Spacing_double.setValue(params["spacing"])
+        self.Scale_x.setValue(params["scale"][0])
+        self.Scale_y.setValue(params["scale"][1])
+        self.Scale_z.setValue(params["scale"][2])
+        self.Rotation_x.setValue(params["rotation"][0])
+        self.Rotation_y.setValue(params["rotation"][1])
+        self.Rotation_z.setValue(params["rotation"][2])
+        self.Scatter_double.setValue(params["scatter"])
+
+    def OnParameterChanged(self):
+        current_item = self.AssetList_Widget.currentItem()
+        if not current_item:
+            return
+        
+        asset_name = current_item.text()
+        if asset_name not in self.Asset_Parameters:
+            return
+        
+        self.Asset_Parameters[asset_name] = {
+            "quantity" : self.Quantity_spin.value(),
+            "spacing" : self.Spacing_double.value(),
+            "scale" : [self.Scale_x.value(), self.Scale_y.value(), self.Scale_z.value()],
+            "rotation" : [self.Rotation_x.value(), self.Rotation_y.value(), self.Rotation_z.value()],
+            "scatter" : self.Scatter_double.value()
+        }
 
     def UpdateRemoveButtonVisibility(self):
         self.RemoveFileButton.setVisible(self.AssetList_Widget.count() > 0)
@@ -371,12 +439,16 @@ class AssetPlacerToolWindow(QWidget):
             else:
                 self.AssetList_Widget.addItem(asset_name)
                 self.UpdateRemoveButtonVisibility()
+        #TODO: When new Asset is added, parameters default 0 (except scale defaults to 1)
 
     def OnRemoveFile(self):
         current = self.AssetList_Widget.currentItem()
         if current:
             self.AssetList_Widget.takeItem(self.AssetList_Widget.row(current))
         self.UpdateRemoveButtonVisibility()
+
+    def Generate():
+        pass
 
 def apply_unreal_palette(app):
     palette = QPalette()
