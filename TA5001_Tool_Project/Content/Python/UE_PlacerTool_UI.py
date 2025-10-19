@@ -1,6 +1,7 @@
 import unreal 
 import sys
 import random
+import math
 #from UE_PlacerTool import AssetPlacerTool
 from functools import partial
 from PySide6.QtGui import QPalette, QColor
@@ -551,101 +552,380 @@ class AssetPlacerToolWindow(QWidget):
         self.UpdateRemoveButtonVisibility()
 
     def Generate(self):
-        # Safety checks
-        if not self.AssetList_Widget.count():
-            unreal.log_warning("No assets in the Asset List.")
+        """
+        Generate assets along the spline using stored data dictionaries:
+        - self.Asset_Parameters
+        - self.Asset_File_Paths
+        - self.Selected_Spline_Path
+        Adds overlap avoidance by trial-spawning and destroying colliding actors, then moving forward.
+        """
+
+        # -------------------------
+        # Section 1: Validation / Safety
+        # -------------------------
+        if not hasattr(self, "Asset_Parameters") or not self.Asset_Parameters:
+            unreal.log_warning("[Generate] No Asset_Parameters found.")
             return
 
-        if not self.Selected_Spline_Path:
-            unreal.log_warning("No spline selected. Please select a spline first.")
+        if not hasattr(self, "Asset_File_Paths") or not self.Asset_File_Paths:
+            unreal.log_warning("[Generate] No Asset_File_Paths found.")
             return
 
-        editor_actor_subsystem = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
-        random_order = self.Random_Checkbox.isChecked()
+        if not hasattr(self, "Selected_Spline_Path") or not self.Selected_Spline_Path:
+            unreal.log_warning("[Generate] No Selected_Spline_Path found.")
+            return
 
-        # Build asset list with remaining quantities
+        if not hasattr(self, "AssetList_Widget") or self.AssetList_Widget.count() == 0:
+            unreal.log_warning("[Generate] Asset list is empty.")
+            return
+
+        # Editor actor subsystem for spawning/destroying
+        actor_subsystem = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+
+        # -------------------------
+        # Section 2: Build asset working list
+        # -------------------------
+        # Preserve order from the AssetList_Widget
+        asset_order = [self.AssetList_Widget.item(i).text() for i in range(self.AssetList_Widget.count())]
+
         assets = []
-        for idx in range(self.AssetList_Widget.count()):
-            asset_name = self.AssetList_Widget.item(idx).text()
-            qty = self.Asset_Parameters[asset_name]["quantity"]
-            if qty > 0:
-                assets.append({"name": asset_name, "qty": qty})
+        for name in asset_order:
+            params = self.Asset_Parameters.get(name)
+            if not params:
+                unreal.log_warning(f"[Generate] Missing parameters for '{name}', skipping.")
+                continue
+            qty = int(params.get("quantity", 0))
+            if qty <= 0:
+                continue
+            assets.append({"name": name, "qty": qty, "params": params})
 
         if not assets:
-            unreal.log_warning("No assets with quantity > 0")
+            unreal.log_warning("[Generate] No spawnable assets (quantity <= 0).")
             return
 
-        # Use sampled positions/rotations from spline path
-        sampled_positions = self.Selected_Spline_Path["Sampled Locations"]
-        sampled_rotations = self.Selected_Spline_Path["Sampled Rotations"]
-        total_points = len(sampled_positions)
+        # Random or sequential mode
+        random_mode = getattr(self, "Random_Checkbox", None) and self.Random_Checkbox.isChecked()
 
-        # Total assets to spawn
-        total_to_spawn = sum([a["qty"] for a in assets])
-        current_idx = 0  # Index into sampled_positions
+        # Optional In-Sequence Spawning ---
+        '''
+        in_sequence = getattr(self, "InSequence_Checkbox", None)
+        if in_sequence and in_sequence.is_checked():
+            # Create a sequence like Asset1, Asset2, Asset1, Asset2, etc.
+            max_quantity = max(self.Asset_Parameters[a]["quantity"] for a in spawn_sequence)
+            new_sequence = []
+            for i in range(max_quantity):
+                for asset in spawn_sequence:
+                    if self.Asset_Parameters[asset]["quantity"] > i:
+                        new_sequence.append(asset)
+            spawn_sequence = new_sequence
+            unreal.log("InSequence mode active — alternating assets in sequence along spline.")
+        else:
+            unreal.log("Standard mode — spawning one asset type at a time.")
+        '''
 
-        for i in range(total_to_spawn):
-            # Pick asset
-            if random_order:
-                asset = random.choice([a for a in assets if a["qty"] > 0])
+        # -------------------------
+        # Section 3: Spline data helpers (use your Selected_Spline_Path structure)
+        # -------------------------
+        spline = self.Selected_Spline_Path
+        point_data = spline.get("Point Data", [])
+        if not point_data:
+            unreal.log_warning("[Generate] Selected_Spline_Path contains no 'Point Data'.")
+            return
+
+        # Distances and positions arrays for interpolation
+        distances = [float(p["Distance Along Spline"]) for p in point_data]
+        positions = [p["World Location"] for p in point_data]     # tuples (x,y,z)
+        directions = [p["Direction"] for p in point_data]         # tuples (x,y,z)
+
+        total_length = float(spline.get("Total Spline Length", distances[-1] if distances else 0.0))
+
+        # Linear interpolation helper
+        def lerp(a, b, t):
+            return a + (b - a) * t
+
+        def lerp_tuple(a, b, t):
+            return (lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t))
+
+        # Sample position and direction at arbitrary distance along spline using linear interpolation between point_data
+        def sample_at_distance(distance):
+            # clamp
+            if distance <= distances[0]:
+                return positions[0], directions[0]
+            if distance >= distances[-1]:
+                return positions[-1], directions[-1]
+
+            # find segment
+            idx = 0
+            while idx < len(distances) - 1 and not (distances[idx] <= distance <= distances[idx + 1]):
+                idx += 1
+
+            d0, d1 = distances[idx], distances[idx + 1]
+            seg_len = d1 - d0 if (d1 - d0) != 0 else 1e-6
+            t = (distance - d0) / seg_len
+            pos = lerp_tuple(positions[idx], positions[idx + 1], t)
+            dirv = lerp_tuple(directions[idx], directions[idx + 1], t)
+            # normalize direction
+            mag = math.sqrt(dirv[0]**2 + dirv[1]**2 + dirv[2]**2)
+            if mag > 1e-6:
+                dirv = (dirv[0]/mag, dirv[1]/mag, dirv[2]/mag)
+            return pos, dirv
+
+        # Helper: convert tuple to unreal.Vector
+        def to_vector(t):
+            return unreal.Vector(float(t[0]), float(t[1]), float(t[2]))
+
+        # Helper: rotator from direction vector (forward)
+        def rotator_from_direction(dir_vec):
+            x, y, z = dir_vec
+            mag_xy = math.hypot(x, y)
+            if mag_xy < 1e-6:
+                yaw = 0.0
+                pitch = 90.0 if z > 0 else -90.0
             else:
-                asset = next((a for a in assets if a["qty"] > 0), None)
-                if not asset:
+                yaw = math.degrees(math.atan2(y, x))
+                pitch = math.degrees(math.atan2(z, mag_xy))
+            return unreal.Rotator(pitch, yaw, 0.0)  # roll = 0
+
+        # -------------------------
+        # Section 4: Spawn loop with overlap avoidance
+        # -------------------------
+        total_to_spawn = sum(a["qty"] for a in assets)
+        total_remaining = total_to_spawn
+        if total_remaining <= 0:
+            unreal.log_warning("[Generate] Total quantity is 0. Nothing to do.")
+            return
+
+        # Keep track of spawned actors to check overlap against
+        spawned_actors = []
+
+        #unreal.set_actor_transform() argument 'teleport' is false
+        teleport = False
+
+        # Starting distance: spawn first at start of spline (0.0)
+        current_distance = 0.0
+
+        # Safety counters
+        spawn_attempts = 0
+        MAX_ATTEMPTS = total_remaining * 20 + 1000
+
+        # Main generation loop: continue until no remaining or run out of spline
+        while total_remaining > 0 and spawn_attempts < MAX_ATTEMPTS:
+            spawn_attempts += 1
+
+            # Choose an asset (random or sequential)
+            if random_mode:
+                choices = [a for a in assets if a["qty"] > 0]
+                if not choices:
+                    break
+                chosen = random.choice(choices)
+            else:
+                chosen = next((a for a in assets if a["qty"] > 0), None)
+                if not chosen:
                     break
 
-            asset_name = asset["name"]
-            params = self.Asset_Parameters[asset_name]
+            name = chosen["name"]
+            params = chosen["params"]
 
-            # Determine scale
-            if self.Scale_Range_Checkbox.isChecked:
-                scl_x = random.uniform(params["ScaleX"], params["ScaleX_max"])
-                scl_y = random.uniform(params["ScaleY"], params["ScaleY_max"])
-                scl_z = random.uniform(params["ScaleZ"], params["ScaleZ_max"])
+            # --- Sample parameters (default = min, optional _max = max) ---
+            # Spacing
+            spacing = float(params.get("spacing", 0.0))
+            if params.get("spacing_max") is not None and params.get("spacing_max") > spacing:
+                spacing = random.uniform(spacing, float(params["spacing_max"]))
+
+            # Scale (per-axis)
+            default_scale = params.get("scale", [1.0, 1.0, 1.0])
+            scale_max = params.get("scale_max")
+            if scale_max:
+                sx = random.uniform(float(default_scale[0]), float(scale_max[0]))
+                sy = random.uniform(float(default_scale[1]), float(scale_max[1]))
+                sz = random.uniform(float(default_scale[2]), float(scale_max[2]))
             else:
-                scl_x, scl_y, scl_z = params["ScaleX"], params["ScaleY"], params["ScaleZ"]
+                sx, sy, sz = float(default_scale[0]), float(default_scale[1]), float(default_scale[2])
 
-            # Determine rotation
-            if self.Rotation_Range_Checkbox.isChecked():
-                rot_x = random.uniform(params["RotationX"], params["RotationX_max"])
-                rot_y = random.uniform(params["RotationY"], params["RotationY_max"])
-                rot_z = random.uniform(params["RotationZ"], params["RotationZ_max"])
-                rot = unreal.Rotator(rot_x, rot_y, rot_z)
+            # Rotation (per-axis Euler). If rotation_max present, random between default and max; otherwise will use spline rot
+            rot_default = params.get("rotation", None)
+            rot_max = params.get("rotation_max", None)
+            use_user_rotation = bool(rot_default is not None)
+            if rot_max:
+                rx = random.uniform(float(rot_default[0]), float(rot_max[0]))
+                ry = random.uniform(float(rot_default[1]), float(rot_max[1]))
+                rz = random.uniform(float(rot_default[2]), float(rot_max[2]))
+                user_rotator = unreal.Rotator(rx, ry, rz)
+                use_user_rotation = True
+            elif rot_default:
+                user_rotator = unreal.Rotator(float(rot_default[0]), float(rot_default[1]), float(rot_default[2]))
+                use_user_rotation = True
             else:
-                r = sampled_rotations[current_idx]
-                rot = unreal.Rotator(r[0], r[1], r[2])
+                user_rotator = None
+                use_user_rotation = False
 
-            # Get location from spline
-            loc_tuple = sampled_positions[current_idx]
-            loc = unreal.Vector(loc_tuple[0], loc_tuple[1], loc_tuple[2])
+            # Scatter (single float)
+            scatter = float(params.get("scatter", 0.0))
 
-            # Build transform
-            spawn_transform = unreal.Transform(
-                rot,
-                loc,
-                unreal.Vector(scl_x, scl_y, scl_z)
-            )
+            # --- Determine candidate spawn location & rotation by sampling spline at current_distance ---
+            pos_tuple, dir_vec = sample_at_distance(current_distance)
+            candidate_loc = to_vector(pos_tuple)
+            # base rotation: from user rot if provided, otherwise from spline direction
+            if use_user_rotation:
+                base_rot = user_rotator
+            else:
+                base_rot = rotator_from_direction(dir_vec)
 
-            # Load asset
-            asset_path = self.Asset_File_Paths.get(asset_name)
+            # Build spawn transform
+            spawn_transform = unreal.Transform(candidate_loc, base_rot, unreal.Vector(sx, sy, sz))
+
+            # --- Overlap avoidance: try spawn, check overlap, if overlap destroy and step forward ---
+            # We'll attempt a limited number of trial spawns for this chosen asset.
+            trial_attempts = 0
+            MAX_TRIALS = 25
+            spawned_success = False
+
+            # Obtain asset UObject path and asset_obj
+            asset_path = self.Asset_File_Paths.get(name)
             if not asset_path:
-                unreal.log_warning(f"Asset path not found for: {asset_name}")
+                unreal.log_warning(f"[Generate] Missing path for asset '{name}'. Skipping this asset.")
+                # Do not decrement qty to allow the user to correct path and regenerate
+                # If nothing is spawnable, outer loop will abort later
                 continue
+
             asset_obj = unreal.load_asset(asset_path)
             if not asset_obj:
-                unreal.log_warning(f"Failed to load asset: {asset_path}")
+                unreal.log_warning(f"[Generate] Failed to load asset at '{asset_path}'. Skipping.")
                 continue
 
-            # Spawn actor
-            spawned_actor = editor_actor_subsystem.spawn_actor_from_object(asset_obj, loc)
-            spawned_actor.set_actor_transform(spawn_transform, False)
+            while trial_attempts < MAX_TRIALS:
+                trial_attempts += 1
 
-            # Decrement quantity
-            asset["qty"] -= 1
+                # Apply scatter as a random offset around the candidate location (local right & up)
+                scattered_loc = unreal.Vector(candidate_loc.x, candidate_loc.y, candidate_loc.z)
+                if scatter != 0.0:
+                    # compute local right from dir_vec
+                    right = (-dir_vec[1], dir_vec[0], 0.0)
+                    rmag = math.sqrt(right[0]**2 + right[1]**2 + right[2]**2)
+                    if rmag > 1e-6:
+                        right = (right[0]/rmag, right[1]/rmag, right[2]/rmag)
+                    else:
+                        right = (1.0, 0.0, 0.0)
+                    up = (0.0, 0.0, 1.0)
+                    off_r = random.uniform(-scatter, scatter)
+                    off_u = random.uniform(-scatter, scatter)
+                    scattered_loc.x += right[0] * off_r + up[0] * off_u
+                    scattered_loc.y += right[1] * off_r + up[1] * off_u
+                    scattered_loc.z += right[2] * off_r + up[2] * off_u
 
-            # Advance along spline
-            current_idx += 1
-            if current_idx >= total_points:
-                current_idx = total_points - 1  # Clamp to last point
+                # Spawn a trial actor at scattered_loc (we'll destroy it if overlapping)
+                try:
+                    trial_actor = actor_subsystem.spawn_actor_from_object(asset_obj, scattered_loc)
+                except Exception as e:
+                    unreal.log_warning(f"[Generate] spawn_actor_from_object failed for '{name}': {e}")
+                    break
+
+                # Immediately set full transform (with scale & rotation)
+                try:
+                    trial_transform = unreal.Transform(scattered_loc, base_rot, unreal.Vector(sx, sy, sz))
+                    # Use the two-arg form (transform, sweep) because some builds require only two args
+                    trial_actor.set_actor_transform(trial_transform, False, teleport)
+                except Exception:
+                    # Fallback: set location/rotation/scale separately (safer)
+                    try:
+                        trial_actor.set_actor_location_and_rotation(scattered_loc, base_rot, False, unreal.TeleportType.NONE)
+                        trial_actor.set_actor_scale3d(unreal.Vector(sx, sy, sz))
+                    except Exception:
+                        # if setting transform fails, destroy trial and abort this trial
+                        try:
+                            actor_subsystem.destroy_actor(trial_actor)
+                        except Exception:
+                            pass
+                        break
+
+                # Compute bounding box center and radius for this trial actor
+                try:
+                    bbox = trial_actor.get_components_bounding_box(True)  # True = only colliding components?
+                    center = bbox.get_center()
+                    extent = bbox.get_extent()  # box half-size (Vector)
+                    trial_radius = max(extent.x, extent.y, extent.z)
+                except Exception:
+                    # if bounding box retrieval fails, use a small conservative radius
+                    center = trial_actor.get_actor_location()
+                    trial_radius = 50.0
+
+                # Check overlap against already spawned actors' bounding boxes
+                overlap = False
+                for other in spawned_actors:
+                    if not other or not hasattr(other, "get_actor_location"):
+                        continue
+                    try:
+                        obox = other.get_components_bounding_box(True)
+                        ocenter = obox.get_center()
+                        oextent = obox.get_extent()
+                        other_radius = max(oextent.x, oextent.y, oextent.z)
+                    except Exception:
+                        ocenter = other.get_actor_location()
+                        other_radius = 50.0
+
+                    # distance between centers
+                    dvec = center - ocenter
+                    dist = math.sqrt(dvec.x**2 + dvec.y**2 + dvec.z**2)
+                    # if distance less than sum of radii plus a small buffer, it's overlapping
+                    buffer = 2.0  # small slack
+                    if dist < (trial_radius + other_radius + buffer):
+                        overlap = True
+                        break
+
+                if not overlap:
+                    # Found a safe placement
+                    spawned_actors.append(trial_actor)
+                    spawned_success = True
+                    break
+                else:
+                    # Overlap found: destroy trial actor and step forward along spline by a small step and retry
+                    try:
+                        actor_subsystem.destroy_actor(trial_actor)
+                    except Exception:
+                        pass
+                    # increment current_distance by a small step (half-spacing or a small amount)
+                    # prefer at least a small move so we can escape local congestion
+                    step_forward = max(spacing * 0.5, 10.0)
+                    current_distance += step_forward
+                    # if moved beyond spline end, abort trials
+                    if current_distance > total_length:
+                        break
+                    # update candidate position and dir for next trial
+                    pos_tuple, dir_vec = sample_at_distance(current_distance)
+                    candidate_loc = unreal.Vector(pos_tuple[0], pos_tuple[1], pos_tuple[2])
+                    # update base rotation if using spline direction
+                    if not use_user_rotation:
+                        base_rot = rotator_from_direction(dir_vec)
+                    # continue while trial_attempts loop
+
+            # End trial attempts
+
+            if not spawned_success:
+                unreal.log_warning(f"[Generate] Could not find non-overlapping spot for '{name}' after {trial_attempts} trials. Skipping this spawn.")
+                # We choose to decrement qty so we don't loop forever on impossible placements; adjust if you prefer
+                chosen["qty"] -= 1
+                total_remaining -= 1
+                # Move forward by spacing anyway to progress along spline
+                current_distance += spacing
+                if current_distance > total_length:
+                    unreal.log("[Generate] Reached end of spline during overlap resolution.")
+                    break
+                continue
+
+            # If spawned_success is True, we have appended the trial actor to spawned_actors already
+            # Decrement counts
+            chosen["qty"] -= 1
+            total_remaining -= 1
+
+            # Advance current_distance by spacing for the next spawn center
+            current_distance += spacing
+            if current_distance > total_length:
+                unreal.log("[Generate] Reached end of spline - stopping generation.")
+                break
+
+        # End main spawn while loop
+        unreal.log(f"[Generate] Completed generation. Remaining total: {total_remaining}")
+
 
 
     
