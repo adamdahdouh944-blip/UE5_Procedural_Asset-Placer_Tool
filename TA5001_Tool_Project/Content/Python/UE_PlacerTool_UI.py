@@ -1,5 +1,6 @@
 import unreal 
 import sys
+import random
 #from UE_PlacerTool import AssetPlacerTool
 from functools import partial
 from PySide6.QtGui import QPalette, QColor
@@ -16,7 +17,7 @@ class AssetPlacerToolWindow(QWidget):
             self.mainwindow = QMainWindow()
             self.mainwindow.setParent(self)
             self.mainwindow.setLayout(QVBoxLayout())
-            self.mainwindow.setFixedSize(600, 500)
+            self.mainwindow.setFixedSize(650, 550)
 
             # --- LEFT DOCK ---
             self.Left_Dock = QDockWidget(self)
@@ -29,6 +30,8 @@ class AssetPlacerToolWindow(QWidget):
             Left_Layout.setSpacing(6)
 
             # --- LEFT DOCK LAYOUT (SPLINE & ASSET LIST) ---
+
+            # --- SPLINE ---
             #Spline Widget Header
             SplineWidget_header = QLabel("Current Spline:")
             SplineWidget_header.setStyleSheet("font-weight: bold; font-size: 12pt; padding: 2px;")
@@ -36,8 +39,17 @@ class AssetPlacerToolWindow(QWidget):
             #Selected Spline Button
             self.SplineButton = QPushButton("<none>")
             self.SplineButton.setStyleSheet("text-align: left; padding: 4px;")
-            self.SplineButton.clicked.connect(self.OnSelectSplineClick)
+            self.SplineButton.clicked.connect(self.OnSelectSplineClick) #Gets Spline in level
+            self.SplineButton.clicked.connect(self.GetSplinePath) #Gets the spline's path data
 
+            #Selected Spline Component
+            self.Selected_Spline = None
+
+            #Selected Spline Path data 
+            self.Selected_Spline_Path = {}
+
+
+            # --- ASSET LIST ---
             #Left Dock Layout
             header_row = QWidget()
             header_layout = QHBoxLayout()
@@ -61,6 +73,9 @@ class AssetPlacerToolWindow(QWidget):
             #Asset List Widget
             self.AssetList_Widget = QListWidget()
             self.AssetList_Widget.setMinimumWidth(200)
+
+            #Asset File Paths
+            self.Asset_File_Paths = {} # {asset_name : asset_path}
 
             #Add File Button
             self.AddFileButton = QPushButton("+")
@@ -109,6 +124,9 @@ class AssetPlacerToolWindow(QWidget):
             qvbox = QVBoxLayout()
 
             # --- PARAMETER PRESETS ----
+
+            #Store Parameters for each asset
+            self.Asset_Parameters = {}
 
             #Quantity
             self.Quantity_spin = QSpinBox()
@@ -302,6 +320,16 @@ class AssetPlacerToolWindow(QWidget):
             #Connect Signals: When an Asset is Clicked in Asset List, Update Parameter List
             self.AssetList_Widget.currentItemChanged.connect(self.OnAssetSelected)
 
+            self.Quantity_spin.valueChanged.connect(self.OnParameterChanged)
+            self.Spacing_double.valueChanged.connect(self.OnParameterChanged)
+            self.Scale_x.valueChanged.connect(self.OnParameterChanged)
+            self.Scale_y.valueChanged.connect(self.OnParameterChanged)
+            self.Scale_z.valueChanged.connect(self.OnParameterChanged)
+            self.Rotation_x.valueChanged.connect(self.OnParameterChanged)
+            self.Rotation_y.valueChanged.connect(self.OnParameterChanged)
+            self.Rotation_z.valueChanged.connect(self.OnParameterChanged)
+            self.Scatter_double.valueChanged.connect(self.OnParameterChanged)
+
             # ---- BOTTOM DOCK ----
             #Generate, Apply and Cancel Button
             self.Bottom_Widget = QWidget()
@@ -310,6 +338,7 @@ class AssetPlacerToolWindow(QWidget):
             bottom_layout.addStretch(1)
 
             self.GenerateButton = QPushButton("Generate")
+            self.GenerateButton.clicked.connect(self.Generate)
             self.ApplyButton = QPushButton("Apply")
             self.CancelButton = QPushButton("Cancel")
 
@@ -341,14 +370,152 @@ class AssetPlacerToolWindow(QWidget):
             # Check if Actor has SplineComponent
             spline_components = actor.get_components_by_class(unreal.SplineComponent)
             if spline_components:
+                self.Selected_Spline = actor
                 self.SplineButton.setText(f"{actor.get_name()}")
         
         unreal.log("Spline Select Button Clicked!")
 
+    def GetSplinePath(self):
+        #Ensure we have a spline actor selected
+        if not self.Selected_Spline:
+            unreal.log_warning("No spline actor selected")
+            return
+        
+        #Get spline component (Draw Spline Tool actors use SplineComponent)
+        spline_components = self.Selected_Spline.get_components_by_class(unreal.SplineComponent)
+        if not spline_components:
+            unreal.log_warning("Selected Actor has no SplineComponent")
+            return
+        
+        spline = spline_components[0] #Use the first spline component found
+
+        num_points = spline.get_number_of_spline_points()
+        num_segments = num_points - 1
+        total_length = spline.get_spline_length()
+
+        spline_data = {
+            "Actor Name": self.Selected_Spline.get_name(),
+            "Number of Points": num_points,
+            "Number of Segments": num_segments,
+            "Total Spline Length":total_length,
+            "Point Data": [] # Will hold dictionaries per spline point
+        }
+
+        for i in range(num_points):
+            #World-space location of this spline point
+            location = spline.get_location_at_spline_point(i, unreal.SplineCoordinateSpace.WORLD)
+            rotation = spline.get_rotation_at_spline_point(i, unreal.SplineCoordinateSpace.WORLD)
+            tangent = spline.get_tangent_at_spline_point(i, unreal.SplineCoordinateSpace.WORLD)
+
+            #Distance along spline to this point
+            distance = spline.get_distance_along_spline_at_spline_point(i)
+
+            #Direction (normalised forward vector)
+            direction = spline.get_direction_at_spline_point(i, unreal.SplineCoordinateSpace.WORLD)
+
+            #Store in structured format
+            spline_data["Point Data"].append({
+                "index": i,
+                "Distance Along Spline": distance,
+                "World Location": (location.x, location.y, location.z),
+                "Rotation": (rotation.roll, rotation.pitch, rotation.yaw),
+                "Tangent": (tangent.x, tangent.y, tangent.z),
+                "Direction": (direction.x, direction.y, direction.z)
+            })
+
+        #Procedural Spacing calculations (e.g., every X units)
+        step = total_length / max(num_segments * 10, 1) #adjustable density
+        sampled_positions = []
+        sampled_rotations = []
+
+        d = 0.0
+        while d <= total_length:
+            pos = spline.get_location_at_distance_along_spline(d, unreal.SplineCoordinateSpace.WORLD)
+            rot = spline.get_rotation_at_distance_along_spline(d, unreal.SplineCoordinateSpace.WORLD)
+            sampled_positions.append((pos.x, pos.y, pos.z))
+            sampled_rotations.append((rot.roll, rot.pitch, rot.yaw))
+            d += step
+
+        spline_data["Sampled Locations"] = sampled_positions
+        spline_data["Sampled Rotations"] = sampled_rotations
+
+        #Store it 
+        self.Selected_Spline_Path = spline_data
+        
+        unreal.log(f"Spline Data Cached for {spline_data['Actor Name']}: {num_points} points, {num_segments} segments, length {total_length:.2f}")
+
+        return spline_data
+
     def OnAssetSelected(self, current, previous):
-        if current:
-            asset_name = current.text()
-            self.Param_header.setText(f"Selected Asset: {asset_name}")
+        if not current:
+            return
+
+        asset_name = current.text()
+        self.Param_header.setText(f"Selected Asset: {asset_name}")
+
+        #Initialise Asset Parameters if new
+        if asset_name not in self.Asset_Parameters:
+            self.Asset_Parameters[asset_name] = {
+                "quantity" : self.Quantity_spin.value(),
+                "quantity_max" : self.Quantity_spin_max.value(),
+                "spacing" : self.Spacing_double.value(),
+                "spacing_max": self.Spacing_double_max.value(),
+                "scale" : [self.Scale_x.value(), self.Scale_y.value(), self.Scale_z.value()],
+                "scale_max" : [self.Scale_x_max.value(), self.Scale_y_max.value(), self.Scale_z_max.value()],
+                "rotation" : [self.Rotation_x.value(), self.Rotation_y.value(), self.Rotation_z.value()],
+                "rotation_max" : [self.Rotation_x_max.value(), self.Rotation_y_max.value(), self.Rotation_z_max.value()],
+                "scatter" : self.Scatter_double.value()
+            }
+        
+        #Load stored parameters into the UI
+        params = self.Asset_Parameters[asset_name]
+
+        self.Quantity_spin.setValue(params["quantity"])
+
+        self.Quantity_spin_max.setValue(params["quantity_max"])
+
+        self.Spacing_double.setValue(params["spacing"])
+
+        self.Spacing_double_max.setValue(params["spacing_max"])
+
+        self.Scale_x.setValue(params["scale"][0])
+        self.Scale_y.setValue(params["scale"][1])
+        self.Scale_z.setValue(params["scale"][2])
+
+        self.Scale_x_max.setValue(params["scale_max"][0])
+        self.Scale_y_max.setValue(params["scale_max"][1])
+        self.Scale_z_max.setValue(params["scale_max"][2])
+
+        self.Rotation_x.setValue(params["rotation"][0])
+        self.Rotation_y.setValue(params["rotation"][1])
+        self.Rotation_z.setValue(params["rotation"][2])
+
+        self.Rotation_x_max.setValue(params["rotation_max"][0])
+        self.Rotation_y_max.setValue(params["rotation_max"][1])
+        self.Rotation_z_max.setValue(params["rotation_max"][2])
+
+        self.Scatter_double.setValue(params["scatter"])
+
+    def OnParameterChanged(self):
+        current_item = self.AssetList_Widget.currentItem()
+        if not current_item:
+            return
+        
+        asset_name = current_item.text()
+        if asset_name not in self.Asset_Parameters:
+            return
+        
+        self.Asset_Parameters[asset_name] = {
+            "quantity" : self.Quantity_spin.value(),
+            "quantity_max" : self.Quantity_spin_max.value(),
+            "spacing" : self.Spacing_double.value(),
+            "spacing_max" : self.Spacing_double_max.value(),
+            "scale" : [self.Scale_x.value(), self.Scale_y.value(), self.Scale_z.value()],
+            "scale_max" : [self.Scale_x_max.value(), self.Scale_y_max.value(), self.Scale_z_max.value()],
+            "rotation" : [self.Rotation_x.value(), self.Rotation_y.value(), self.Rotation_z.value()],
+            "rotation_max" : [self.Rotation_x_max.value(), self.Rotation_y_max.value(), self.Rotation_z_max.value()],
+            "scatter" : self.Scatter_double.value()
+        }
 
     def UpdateRemoveButtonVisibility(self):
         self.RemoveFileButton.setVisible(self.AssetList_Widget.count() > 0)
@@ -364,19 +531,124 @@ class AssetPlacerToolWindow(QWidget):
 
         for asset in selected_assets:
             asset_name = asset.get_name()
+            asset_path = asset.get_path_name()
 
             if asset_name in existing_assets:
                 unreal.log_warning(f"Asset {asset_name} Already in Asset List")
                 continue
             else:
+                #Add to List Widget
                 self.AssetList_Widget.addItem(asset_name)
+                #Store Path in Dictionary
+                self.Asset_File_Paths[asset_name] = asset_path
                 self.UpdateRemoveButtonVisibility()
+        #TODO: When new Asset is added, parameters default 0 (except scale defaults to 1)
 
     def OnRemoveFile(self):
         current = self.AssetList_Widget.currentItem()
         if current:
             self.AssetList_Widget.takeItem(self.AssetList_Widget.row(current))
         self.UpdateRemoveButtonVisibility()
+
+    def Generate(self):
+        # Safety checks
+        if not self.AssetList_Widget.count():
+            unreal.log_warning("No assets in the Asset List.")
+            return
+
+        if not self.Selected_Spline_Path:
+            unreal.log_warning("No spline selected. Please select a spline first.")
+            return
+
+        editor_actor_subsystem = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+        random_order = self.Random_Checkbox.isChecked()
+
+        # Build asset list with remaining quantities
+        assets = []
+        for idx in range(self.AssetList_Widget.count()):
+            asset_name = self.AssetList_Widget.item(idx).text()
+            qty = self.Asset_Parameters[asset_name]["quantity"]
+            if qty > 0:
+                assets.append({"name": asset_name, "qty": qty})
+
+        if not assets:
+            unreal.log_warning("No assets with quantity > 0")
+            return
+
+        # Use sampled positions/rotations from spline path
+        sampled_positions = self.Selected_Spline_Path["Sampled Locations"]
+        sampled_rotations = self.Selected_Spline_Path["Sampled Rotations"]
+        total_points = len(sampled_positions)
+
+        # Total assets to spawn
+        total_to_spawn = sum([a["qty"] for a in assets])
+        current_idx = 0  # Index into sampled_positions
+
+        for i in range(total_to_spawn):
+            # Pick asset
+            if random_order:
+                asset = random.choice([a for a in assets if a["qty"] > 0])
+            else:
+                asset = next((a for a in assets if a["qty"] > 0), None)
+                if not asset:
+                    break
+
+            asset_name = asset["name"]
+            params = self.Asset_Parameters[asset_name]
+
+            # Determine scale
+            if self.Scale_Range_Checkbox.isChecked:
+                scl_x = random.uniform(params["ScaleX"], params["ScaleX_max"])
+                scl_y = random.uniform(params["ScaleY"], params["ScaleY_max"])
+                scl_z = random.uniform(params["ScaleZ"], params["ScaleZ_max"])
+            else:
+                scl_x, scl_y, scl_z = params["ScaleX"], params["ScaleY"], params["ScaleZ"]
+
+            # Determine rotation
+            if self.Rotation_Range_Checkbox.isChecked():
+                rot_x = random.uniform(params["RotationX"], params["RotationX_max"])
+                rot_y = random.uniform(params["RotationY"], params["RotationY_max"])
+                rot_z = random.uniform(params["RotationZ"], params["RotationZ_max"])
+                rot = unreal.Rotator(rot_x, rot_y, rot_z)
+            else:
+                r = sampled_rotations[current_idx]
+                rot = unreal.Rotator(r[0], r[1], r[2])
+
+            # Get location from spline
+            loc_tuple = sampled_positions[current_idx]
+            loc = unreal.Vector(loc_tuple[0], loc_tuple[1], loc_tuple[2])
+
+            # Build transform
+            spawn_transform = unreal.Transform(
+                rot,
+                loc,
+                unreal.Vector(scl_x, scl_y, scl_z)
+            )
+
+            # Load asset
+            asset_path = self.Asset_File_Paths.get(asset_name)
+            if not asset_path:
+                unreal.log_warning(f"Asset path not found for: {asset_name}")
+                continue
+            asset_obj = unreal.load_asset(asset_path)
+            if not asset_obj:
+                unreal.log_warning(f"Failed to load asset: {asset_path}")
+                continue
+
+            # Spawn actor
+            spawned_actor = editor_actor_subsystem.spawn_actor_from_object(asset_obj, loc)
+            spawned_actor.set_actor_transform(spawn_transform, False)
+
+            # Decrement quantity
+            asset["qty"] -= 1
+
+            # Advance along spline
+            current_idx += 1
+            if current_idx >= total_points:
+                current_idx = total_points - 1  # Clamp to last point
+
+
+    
 
 def apply_unreal_palette(app):
     palette = QPalette()
