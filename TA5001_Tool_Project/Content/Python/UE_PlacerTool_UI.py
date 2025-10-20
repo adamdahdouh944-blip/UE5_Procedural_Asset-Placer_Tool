@@ -60,9 +60,12 @@ class AssetPlacerToolWindow(QWidget):
             AssetList_header = QLabel("Asset List") #AssetList  Header
             AssetList_header.setStyleSheet("font-weight: bold; font-size:12pt; padding: 2px;")
             self.Random_Checkbox = QCheckBox("Random") #Random Checkbox
+            self.InSequence_Checkbox = QCheckBox("Sequence") #Sequence Checkbox
+            self.ConnectRandomSequenceToggle()
             header_layout.addWidget(AssetList_header)
             header_layout.addStretch(1)
             header_layout.addWidget(self.Random_Checkbox)
+            header_layout.addWidget(self.InSequence_Checkbox)
             header_row.setLayout(header_layout)
 
             #Asset List and Add/Remove buttons Row
@@ -319,16 +322,34 @@ class AssetPlacerToolWindow(QWidget):
             self.mainwindow.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.Param_Dock)
 
             #Connect Signals: When an Asset is Clicked in Asset List, Update Parameter List
+            #Store and save parameters for each asset
+            #Switch from Random to InSequence
             self.AssetList_Widget.currentItemChanged.connect(self.OnAssetSelected)
 
             self.Quantity_spin.valueChanged.connect(self.OnParameterChanged)
+            self.Quantity_spin_max.valueChanged.connect(self.OnParameterChanged)
+            self.Quantity_Range_Checkbox.checkStateChanged.connect(self.OnParameterChanged)
+
             self.Spacing_double.valueChanged.connect(self.OnParameterChanged)
+            self.Spacing_double_max.valueChanged.connect(self.OnParameterChanged)
+            self.Spacing_Range_Checkbox.checkStateChanged.connect(self.OnParameterChanged)
+
             self.Scale_x.valueChanged.connect(self.OnParameterChanged)
             self.Scale_y.valueChanged.connect(self.OnParameterChanged)
             self.Scale_z.valueChanged.connect(self.OnParameterChanged)
+            self.Scale_x_max.valueChanged.connect(self.OnParameterChanged)
+            self.Scale_y_max.valueChanged.connect(self.OnParameterChanged)
+            self.Scale_z_max.valueChanged.connect(self.OnParameterChanged)
+            self.Scale_Range_Checkbox.checkStateChanged.connect(self.OnParameterChanged)
+
             self.Rotation_x.valueChanged.connect(self.OnParameterChanged)
             self.Rotation_y.valueChanged.connect(self.OnParameterChanged)
             self.Rotation_z.valueChanged.connect(self.OnParameterChanged)
+            self.Rotation_x_max.valueChanged.connect(self.OnParameterChanged)
+            self.Rotation_y_max.valueChanged.connect(self.OnParameterChanged)
+            self.Rotation_z_max.valueChanged.connect(self.OnParameterChanged)
+            self.Rotation_Range_Checkbox.checkStateChanged.connect(self.OnParameterChanged)
+
             self.Scatter_double.valueChanged.connect(self.OnParameterChanged)
 
             # ---- BOTTOM DOCK ----
@@ -447,6 +468,23 @@ class AssetPlacerToolWindow(QWidget):
 
         return spline_data
 
+    def ConnectRandomSequenceToggle(self):
+        '''Ensures Random and InSequence checkboxes are mutually exclusive.'''
+
+        def onRandomToggled(checked):
+                if checked and self.InSequence_Checkbox.isChecked():
+                    self.InSequence_Checkbox.setChecked(False)
+                    unreal.log("Disabled InSequence since Random was enabled")
+
+        def onInSequenceToggled(checked):
+                if checked and self.Random_Checkbox.isChecked():
+                    self.Random_Checkbox.setChecked(False)
+                    unreal.log("Disabled Random since InSequence was enabled")
+
+        # Connect Checkbox Change Events
+        self.Random_Checkbox.checkStateChanged.connect(onRandomToggled)
+        self.InSequence_Checkbox.checkStateChanged.connect(onInSequenceToggled)
+
     def OnAssetSelected(self, current, previous):
         if not current:
             return
@@ -459,12 +497,16 @@ class AssetPlacerToolWindow(QWidget):
             self.Asset_Parameters[asset_name] = {
                 "quantity" : self.Quantity_spin.value(),
                 "quantity_max" : self.Quantity_spin_max.value(),
+                "quantity_range" :self.Quantity_Range_Checkbox.isChecked(),
                 "spacing" : self.Spacing_double.value(),
                 "spacing_max": self.Spacing_double_max.value(),
+                "spacing_range" : self.Scale_Range_Checkbox.isChecked(),
                 "scale" : [self.Scale_x.value(), self.Scale_y.value(), self.Scale_z.value()],
                 "scale_max" : [self.Scale_x_max.value(), self.Scale_y_max.value(), self.Scale_z_max.value()],
+                "scale_range" : self.Scale_Range_Checkbox.isChecked(),
                 "rotation" : [self.Rotation_x.value(), self.Rotation_y.value(), self.Rotation_z.value()],
                 "rotation_max" : [self.Rotation_x_max.value(), self.Rotation_y_max.value(), self.Rotation_z_max.value()],
+                "rotation_range" : self.Rotation_Range_Checkbox.isChecked(),
                 "scatter" : self.Scatter_double.value()
             }
         
@@ -472,12 +514,12 @@ class AssetPlacerToolWindow(QWidget):
         params = self.Asset_Parameters[asset_name]
 
         self.Quantity_spin.setValue(params["quantity"])
-
         self.Quantity_spin_max.setValue(params["quantity_max"])
+        self.Quantity_Range_Checkbox.setChecked(params["quantity_range"])
 
         self.Spacing_double.setValue(params["spacing"])
-
         self.Spacing_double_max.setValue(params["spacing_max"])
+        self.Spacing_Range_Checkbox.setChecked(params["spacing_range"])
 
         self.Scale_x.setValue(params["scale"][0])
         self.Scale_y.setValue(params["scale"][1])
@@ -487,6 +529,8 @@ class AssetPlacerToolWindow(QWidget):
         self.Scale_y_max.setValue(params["scale_max"][1])
         self.Scale_z_max.setValue(params["scale_max"][2])
 
+        self.Scale_Range_Checkbox.setChecked(params["scale_range"])
+
         self.Rotation_x.setValue(params["rotation"][0])
         self.Rotation_y.setValue(params["rotation"][1])
         self.Rotation_z.setValue(params["rotation"][2])
@@ -494,6 +538,8 @@ class AssetPlacerToolWindow(QWidget):
         self.Rotation_x_max.setValue(params["rotation_max"][0])
         self.Rotation_y_max.setValue(params["rotation_max"][1])
         self.Rotation_z_max.setValue(params["rotation_max"][2])
+
+        self.Rotation_Range_Checkbox.setChecked(params["rotation_range"])
 
         self.Scatter_double.setValue(params["scatter"])
 
@@ -509,12 +555,16 @@ class AssetPlacerToolWindow(QWidget):
         self.Asset_Parameters[asset_name] = {
             "quantity" : self.Quantity_spin.value(),
             "quantity_max" : self.Quantity_spin_max.value(),
+            "quantity_range" : self.Quantity_Range_Checkbox.isChecked(),
             "spacing" : self.Spacing_double.value(),
             "spacing_max" : self.Spacing_double_max.value(),
+            "spacing_range" : self.Spacing_Range_Checkbox.isChecked(),
             "scale" : [self.Scale_x.value(), self.Scale_y.value(), self.Scale_z.value()],
             "scale_max" : [self.Scale_x_max.value(), self.Scale_y_max.value(), self.Scale_z_max.value()],
+            "scale_range" : self.Scale_Range_Checkbox.isChecked(),
             "rotation" : [self.Rotation_x.value(), self.Rotation_y.value(), self.Rotation_z.value()],
             "rotation_max" : [self.Rotation_x_max.value(), self.Rotation_y_max.value(), self.Rotation_z_max.value()],
+            "rotation_range" : self.Rotation_Range_Checkbox.isChecked(),
             "scatter" : self.Scatter_double.value()
         }
 
@@ -594,9 +644,18 @@ class AssetPlacerToolWindow(QWidget):
             if not params:
                 unreal.log_warning(f"[Generate] Missing parameters for '{name}', skipping.")
                 continue
+
             qty = int(params.get("quantity", 0))
+
+            if hasattr(self, "Quantity_Range_Checkbox") and self.Quantity_Range_Checkbox.isChecked():
+                qty_min = int(params.get("quantity", 0))
+                qty_max = int(params.get("quantity_max", qty_min))
+                if qty_max > qty_min:
+                    qty = random.randint(qty_min, qty_max)
+
             if qty <= 0:
                 continue
+
             assets.append({"name": name, "qty": qty, "params": params})
 
         if not assets:
@@ -606,10 +665,9 @@ class AssetPlacerToolWindow(QWidget):
         # Random or sequential mode
         random_mode = getattr(self, "Random_Checkbox", None) and self.Random_Checkbox.isChecked()
 
-        # Optional In-Sequence Spawning ---
-        '''
-        in_sequence = getattr(self, "InSequence_Checkbox", None)
-        if in_sequence and in_sequence.is_checked():
+        #TODO In-Sequence Spawning ---
+        '''in_sequence = getattr(self, "InSequence_Checkbox", None) and self.InSequence_Checkbox.isChecked()
+        if in_sequence:
             # Create a sequence like Asset1, Asset2, Asset1, Asset2, etc.
             max_quantity = max(self.Asset_Parameters[a]["quantity"] for a in spawn_sequence)
             new_sequence = []
@@ -620,8 +678,7 @@ class AssetPlacerToolWindow(QWidget):
             spawn_sequence = new_sequence
             unreal.log("InSequence mode active — alternating assets in sequence along spline.")
         else:
-            unreal.log("Standard mode — spawning one asset type at a time.")
-        '''
+            unreal.log("Standard mode — spawning one asset type at a time.")'''
 
         # -------------------------
         # Section 3: Spline data helpers (use your Selected_Spline_Path structure)
@@ -729,16 +786,18 @@ class AssetPlacerToolWindow(QWidget):
             # --- Sample parameters (default = min, optional _max = max) ---
             # Spacing
             spacing = float(params.get("spacing", 0.0))
-            if params.get("spacing_max") is not None and params.get("spacing_max") > spacing:
-                spacing = random.uniform(spacing, float(params["spacing_max"]))
+            if self.Spacing_Range_Checkbox.isChecked():
+                if params.get("spacing_max") is not None and params.get("spacing_max") > spacing:
+                    spacing = random.uniform(spacing, float(params["spacing_max"]))
 
             # Scale (per-axis)
             default_scale = params.get("scale", [1.0, 1.0, 1.0])
             scale_max = params.get("scale_max")
-            if scale_max:
-                sx = random.uniform(float(default_scale[0]), float(scale_max[0]))
-                sy = random.uniform(float(default_scale[1]), float(scale_max[1]))
-                sz = random.uniform(float(default_scale[2]), float(scale_max[2]))
+            if self.Scale_Range_Checkbox.isChecked():
+                if scale_max:
+                    sx = random.uniform(float(default_scale[0]), float(scale_max[0]))
+                    sy = random.uniform(float(default_scale[1]), float(scale_max[1]))
+                    sz = random.uniform(float(default_scale[2]), float(scale_max[2]))
             else:
                 sx, sy, sz = float(default_scale[0]), float(default_scale[1]), float(default_scale[2])
 
@@ -746,12 +805,13 @@ class AssetPlacerToolWindow(QWidget):
             rot_default = params.get("rotation", None)
             rot_max = params.get("rotation_max", None)
             use_user_rotation = bool(rot_default is not None)
-            if rot_max:
-                rx = random.uniform(float(rot_default[0]), float(rot_max[0]))
-                ry = random.uniform(float(rot_default[1]), float(rot_max[1]))
-                rz = random.uniform(float(rot_default[2]), float(rot_max[2]))
-                user_rotator = unreal.Rotator(rx, ry, rz)
-                use_user_rotation = True
+            if self.Rotation_Range_Checkbox.isChecked():
+                if rot_max:
+                    rx = random.uniform(float(rot_default[0]), float(rot_max[0]))
+                    ry = random.uniform(float(rot_default[1]), float(rot_max[1]))
+                    rz = random.uniform(float(rot_default[2]), float(rot_max[2]))
+                    user_rotator = unreal.Rotator(rx, ry, rz)
+                    use_user_rotation = True
             elif rot_default:
                 user_rotator = unreal.Rotator(float(rot_default[0]), float(rot_default[1]), float(rot_default[2]))
                 use_user_rotation = True
