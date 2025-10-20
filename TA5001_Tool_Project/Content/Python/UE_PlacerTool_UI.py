@@ -61,6 +61,7 @@ class AssetPlacerToolWindow(QWidget):
             AssetList_header.setStyleSheet("font-weight: bold; font-size:12pt; padding: 2px;")
             self.Random_Checkbox = QCheckBox("Random") #Random Checkbox
             self.InSequence_Checkbox = QCheckBox("Sequence") #Sequence Checkbox
+            self.InSequence_Checkbox.setVisible(False) # ------ TEMPORARY -------
             self.ConnectRandomSequenceToggle()
             header_layout.addWidget(AssetList_header)
             header_layout.addStretch(1)
@@ -362,7 +363,9 @@ class AssetPlacerToolWindow(QWidget):
             self.GenerateButton = QPushButton("Generate")
             self.GenerateButton.clicked.connect(self.Generate)
             self.ApplyButton = QPushButton("Apply")
+            self.ApplyButton.setVisible(False) # ------ TEMPORARY -------
             self.CancelButton = QPushButton("Cancel")
+            self.CancelButton.setVisible(False) # ------ TEMPORARY -------
 
             for button in [self.GenerateButton, self.ApplyButton, self.CancelButton]:
                 button.setFixedWidth(100)
