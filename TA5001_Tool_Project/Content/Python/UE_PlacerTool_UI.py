@@ -5,7 +5,7 @@ import math
 #from UE_PlacerTool import AssetPlacerTool
 from functools import partial
 from PySide6.QtGui import QPalette, QColor
-from PySide6.QtCore import QSize, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QApplication, QWidget, QDockWidget, 
     QMainWindow, QPushButton, QVBoxLayout, QListWidget, QLabel, 
     QFormLayout, QSpinBox, QDoubleSpinBox, QHBoxLayout, QCheckBox)
@@ -604,6 +604,9 @@ class AssetPlacerToolWindow(QWidget):
             self.AssetList_Widget.takeItem(self.AssetList_Widget.row(current))
         self.UpdateRemoveButtonVisibility()
 
+    def Cancel(self):
+        pass
+
     def Generate(self):
         """
         Generate assets along the spline using stored data dictionaries:
@@ -790,14 +793,14 @@ class AssetPlacerToolWindow(QWidget):
             # --- Sample parameters (default = min, optional _max = max) ---
             # Spacing
             spacing = float(params.get("spacing", 0.0))
-            if self.Spacing_Range_Checkbox.isChecked():
+            if hasattr(self, "Spacing_Range_Checkbox") and self.Spacing_Range_Checkbox.isChecked():
                 if params.get("spacing_max") is not None and params.get("spacing_max") > spacing:
                     spacing = random.uniform(spacing, float(params["spacing_max"]))
 
             # Scale (per-axis)
             default_scale = params.get("scale", [1.0, 1.0, 1.0])
             scale_max = params.get("scale_max")
-            if self.Scale_Range_Checkbox.isChecked():
+            if hasattr(self, "Scale_Range_Checkbox") and self.Scale_Range_Checkbox.isChecked():
                 if scale_max:
                     sx = random.uniform(float(default_scale[0]), float(scale_max[0]))
                     sy = random.uniform(float(default_scale[1]), float(scale_max[1]))
@@ -809,7 +812,7 @@ class AssetPlacerToolWindow(QWidget):
             rot_default = params.get("rotation", None)
             rot_max = params.get("rotation_max", None)
             use_user_rotation = bool(rot_default is not None)
-            if self.Rotation_Range_Checkbox.isChecked():
+            if hasattr(self, "Rotation_Range_Checkbox") and self.Rotation_Range_Checkbox.isChecked():
                 if rot_max:
                     rx = random.uniform(float(rot_default[0]), float(rot_max[0]))
                     ry = random.uniform(float(rot_default[1]), float(rot_max[1]))
@@ -1062,4 +1065,29 @@ def launchWindow():
     AssetPlacerToolWindow.window.setObjectName("ToolWindow")
     unreal.parent_external_window_to_slate(AssetPlacerToolWindow.window.winId())
 
+@unreal.uclass()
+class AssetPlacerToolScript(unreal.ToolMenuEntryScript):
+    @unreal.ufunction(override=True)
+    def execute(self, context):
+        launchWindow()
+
+def createNewMainMenu():
+    tool_menus = unreal.ToolMenus.get()
+
+    mainMenu = tool_menus.find_menu("LevelEditor.MainMenu")
+
+    AssetPlacerToolScriptObject = AssetPlacerToolScript()
+    AssetPlacerToolScriptObject.init_entry(
+        owner_name = mainMenu.menu_name,
+        menu = mainMenu.menu_name,
+        section = "MainMenu",
+        name = "Procedural Asset Placer Tool",
+        label = "Asset Placer Tool",
+        tool_tip = "Place assets onto a chosen spline"
+    )
+
+    AssetPlacerToolScriptObject.register_menu_entry()
+    tool_menus.refresh_all_widgets()
+
 launchWindow()
+#createNewMainMenu()
