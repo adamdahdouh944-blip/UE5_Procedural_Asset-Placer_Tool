@@ -699,7 +699,8 @@ class AssetPlacerToolWindow(QWidget):
 
         total_length = float(spline.get("Total Spline Length", distances[-1] if distances else 0.0))
 
-        # Linear interpolation helper
+        # Linear interpolation functions
+        # Replace with API Lerp functions <------ REMINDER -----
         def lerp(a, b, t):
             return a + (b - a) * t
 
@@ -989,9 +990,6 @@ class AssetPlacerToolWindow(QWidget):
         # End main spawn while loop
         unreal.log(f"[Generate] Completed generation. Remaining total: {total_remaining}")
 
-
-
-    
 
 def apply_unreal_palette(app):
     palette = QPalette()
