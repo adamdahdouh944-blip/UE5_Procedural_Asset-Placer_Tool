@@ -2015,3 +2015,91 @@ LogConfig: Set CVar [[r.VRS.EnableSoftware:1]]
 
 [2025.10.17-20.18.51:547][384]LogPython: Error: KeyError: 'ScaleX'
 
+[2025.10.17-20.21.14:876][860]LogUObjectHash: Compacting FUObjectHashTables data took   0.45ms
+[2025.10.17-20.21.17:865][860]LogSlate: Window 'Save Content' being destroyed
+[2025.10.17-20.21.17:887][860]LogFileHelpers: InternalPromptForCheckoutAndSave started...
+[2025.10.17-20.21.18:585][860]LogSavePackage: Moving output files for package: /Game/__ExternalActors__/ThirdPerson/Lvl_ThirdPerson/D/1H/PRPZU6O20FFNXAJ8NKJ35X
+[2025.10.17-20.21.18:585][860]LogSavePackage: Moving 'X:/UE5_Procedural_Asset-Placer_Tool/TA5001_Tool_Project/Saved/PRPZU6O20FFNXAJ8NKJ35X0FAB291E42CC904DDD576BA221F10F9C.tmp' to 'X:/UE5_Procedural_Asset-Placer_Tool/TA5001_Tool_Project/Content/__ExternalActors__/ThirdPerson/Lvl_ThirdPerson/D/1H/PRPZU6O20FFNXAJ8NKJ35X.uasset'
+[2025.10.17-20.21.18:668][860]LogSavePackage: Moving output files for package: /Game/__ExternalActors__/ThirdPerson/Lvl_ThirdPerson/A/3G/9SLAYD6VPRZ5LOO1P1BXPH
+[2025.10.17-20.21.18:668][860]LogSavePackage: Moving 'X:/UE5_Procedural_Asset-Placer_Tool/TA5001_Tool_Project/Saved/9SLAYD6VPRZ5LOO1P1BXPH75DB85E64668703A7FD232AC6E4D83A1.tmp' to 'X:/UE5_Procedural_Asset-Placer_Tool/TA5001_Tool_Project/Content/__ExternalActors__/ThirdPerson/Lvl_ThirdPerson/A/3G/9SLAYD6VPRZ5LOO1P1BXPH.uasset'
+[2025.10.17-20.21.18:695][860]OBJ SavePackage: Generating thumbnails for [0] asset(s) in package [/Game/ThirdPerson/_GENERATED/UG23100944/Triangulation_529CD41F] ([1] browsable assets)...
+[2025.10.17-20.21.18:695][860]OBJ SavePackage: Finished generating thumbnails for package [/Game/ThirdPerson/_GENERATED/UG23100944/Triangulation_529CD41F]
+[2025.10.17-20.21.18:808][860]LogSavePackage: Moving output files for package: /Game/ThirdPerson/_GENERATED/UG23100944/Triangulation_529CD41F
+[2025.10.17-20.21.18:808][860]LogSavePackage: Moving 'X:/UE5_Procedural_Asset-Placer_Tool/TA5001_Tool_Project/Saved/Triangulation_529CD41FDE62F365424D061A265D7DA57A1495AA.tmp' to 'X:/UE5_Procedural_Asset-Placer_Tool/TA5001_Tool_Project/Content/ThirdPerson/_GENERATED/UG23100944/Triangulation_529CD41F.uasset'
+[2025.10.17-20.21.18:865][860]LogFileHelpers: InternalPromptForCheckoutAndSave took 978.014 ms
+[2025.10.17-20.21.19:389][860]LogStall: Shutdown...
+[2025.10.17-20.21.19:389][860]LogStall: Shutdown complete.
+[2025.10.17-20.21.19:722][860]LogSlate: Window 'TA5001_Tool_Project - Unreal Editor' being destroyed
+[2025.10.17-20.21.19:894][860]LogAssetRegistry: Warning: FPathExistence failed to gather correct capitalization from disk for X:/UE5_Procedural_Asset-Placer_Tool/TA5001_Tool_Project/Content/ThirdPerson/Lvl_ThirdPerson.umap, because GetFilenameOnDisk returned non-matching filename '//escapesmb/UG23100944$/UE5_Procedural_Asset-Placer_Tool/TA5001_Tool_Project/Content/ThirdPerson/Lvl_ThirdPerson.umap'.
+[2025.10.17-20.21.19:895][860]LogContentValidation: Display: Starting to validate 3 assets
+[2025.10.17-20.21.19:895][860]LogContentValidation: Enabled validators:
+[2025.10.17-20.21.19:895][860]LogContentValidation: 	/Script/DataValidation.EditorValidator_Material
+[2025.10.17-20.21.19:895][860]LogContentValidation: 	/Script/DataValidation.DirtyFilesChangelistValidator
+[2025.10.17-20.21.19:895][860]LogContentValidation: 	/Script/DataValidation.EditorValidator_Localization
+[2025.10.17-20.21.19:895][860]LogContentValidation: 	/Script/DataValidation.PackageFileValidator
+[2025.10.17-20.21.19:895][860]LogContentValidation: 	/Script/DataValidation.WorldPartitionChangelistValidator
+[2025.10.17-20.21.19:895][860]LogContentValidation: 	/Script/InputBlueprintNodes.EnhancedInputUserWidgetValidator
+[2025.10.17-20.21.19:897][860]AssetCheck: /Game/ThirdPerson/Lvl_ThirdPerson Validating asset
+[2025.10.17-20.21.19:897][860]AssetCheck: /Game/ThirdPerson/_GENERATED/UG23100944/Triangulation_529CD41F Validating asset
+[2025.10.17-20.21.19:915][860]LogAssetRegistry: Warning: FPathExistence failed to gather correct capitalization from disk for X:/UE5_Procedural_Asset-Placer_Tool/TA5001_Tool_Project/Content/ThirdPerson/Lvl_ThirdPerson.umap, because GetFilenameOnDisk returned non-matching filename '//escapesmb/UG23100944$/UE5_Procedural_Asset-Placer_Tool/TA5001_Tool_Project/Content/ThirdPerson/Lvl_ThirdPerson.umap'.
+[2025.10.17-20.21.19:921][860]LogAssetRegistry: Warning: FPathExistence failed to gather correct capitalization from disk for X:/UE5_Procedural_Asset-Placer_Tool/TA5001_Tool_Project/Content/__ExternalActors__/ThirdPerson/Lvl_ThirdPerson/D/1H/PRPZU6O20FFNXAJ8NKJ35X.uasset, because GetFilenameOnDisk returned non-matching filename '//escapesmb/UG23100944$/UE5_Procedural_Asset-Placer_Tool/TA5001_Tool_Project/Content/__ExternalActors__/ThirdPerson/Lvl_ThirdPerson/D/1H/PRPZU6O20FFNXAJ8NKJ35X.uasset'.
+[2025.10.17-20.21.19:923][860]LogAssetRegistry: Warning: FPathExistence failed to gather correct capitalization from disk for X:/UE5_Procedural_Asset-Placer_Tool/TA5001_Tool_Project/Content/__ExternalActors__/ThirdPerson/Lvl_ThirdPerson/A/3G/9SLAYD6VPRZ5LOO1P1BXPH.uasset, because GetFilenameOnDisk returned non-matching filename '//escapesmb/UG23100944$/UE5_Procedural_Asset-Placer_Tool/TA5001_Tool_Project/Content/__ExternalActors__/ThirdPerson/Lvl_ThirdPerson/A/3G/9SLAYD6VPRZ5LOO1P1BXPH.uasset'.
+[2025.10.17-20.21.19:925][860]LogAssetRegistry: Warning: FPathExistence failed to gather correct capitalization from disk for X:/UE5_Procedural_Asset-Placer_Tool/TA5001_Tool_Project/Content/ThirdPerson/_GENERATED/UG23100944/Triangulation_529CD41F.uasset, because GetFilenameOnDisk returned non-matching filename '//escapesmb/UG23100944$/UE5_Procedural_Asset-Placer_Tool/TA5001_Tool_Project/Content/ThirdPerson/_GENERATED/UG23100944/Triangulation_529CD41F.uasset'.
+[2025.10.17-20.21.19:951][860]Cmd: QUIT_EDITOR
+[2025.10.17-20.21.19:951][860]LogCore: Engine exit requested (reason: UUnrealEdEngine::CloseEditor())
+[2025.10.17-20.21.19:967][860]LogSourceControl: Display: Uncontrolled Changelist persistency file saved X:/UE5_Procedural_Asset-Placer_Tool/TA5001_Tool_Project/Saved/SourceControl/UncontrolledChangelists.json
+[2025.10.17-20.21.20:002][861]LogCore: Engine exit requested (reason: EngineExit() was called; note: exit was already requested)
+[2025.10.17-20.21.20:003][861]LogStaticMesh: Abandoning remaining async distance field tasks for shutdown
+[2025.10.17-20.21.20:003][861]LogStaticMesh: Abandoning remaining async card representation tasks for shutdown
+[2025.10.17-20.21.20:004][861]LogWorld: UWorld::CleanupWorld for Lvl_ThirdPerson, bSessionEnded=true, bCleanupResources=true
+[2025.10.17-20.21.20:004][861]LogSlate: InvalidateAllWidgets triggered.  All widgets were invalidated
+[2025.10.17-20.21.20:004][861]LogWorldPartition: UWorldPartition::Uninitialize : World = /Game/ThirdPerson/Lvl_ThirdPerson.Lvl_ThirdPerson
+[2025.10.17-20.21.20:092][861]LogTedsSettings: UTedsSettingsEditorSubsystem::Deinitialize
+[2025.10.17-20.21.20:093][861]LogStylusInput: Shutting down StylusInput subsystem.
+[2025.10.17-20.21.20:093][861]LogLevelSequenceEditor: LevelSequenceEditor subsystem deinitialized.
+[2025.10.17-20.21.20:103][861]LogWorld: UWorld::CleanupWorld for World_0, bSessionEnded=true, bCleanupResources=true
+[2025.10.17-20.21.20:103][861]LogSlate: InvalidateAllWidgets triggered.  All widgets were invalidated
+[2025.10.17-20.21.20:104][861]LogWorld: UWorld::CleanupWorld for World_1, bSessionEnded=true, bCleanupResources=true
+[2025.10.17-20.21.20:104][861]LogSlate: InvalidateAllWidgets triggered.  All widgets were invalidated
+[2025.10.17-20.21.20:104][861]LogRuntimeTelemetry: Recording EnginePreExit events
+[2025.10.17-20.21.20:104][861]LogStudioTelemetry: Ended StudioTelemetry Session
+[2025.10.17-20.21.20:112][861]LogAnalytics: Display: [UEEditor.Rocket.Release] AnalyticsET::EndSession
+[2025.10.17-20.21.20:114][861]LogAudio: Display: Beginning Audio Device Manager Shutdown (Module: AudioMixerXAudio2)...
+[2025.10.17-20.21.20:114][861]LogAudio: Display: Destroying 1 Remaining Audio Device(s)...
+[2025.10.17-20.21.20:114][861]LogAudio: Display: Audio Device unregistered from world 'Lvl_ThirdPerson'.
+[2025.10.17-20.21.20:114][861]LogAudio: Display: Shutting down audio device while 1 references to it are still alive. For more information, compile with INSTRUMENT_AUDIODEVICE_HANDLES.
+[2025.10.17-20.21.20:114][861]LogAudioMixer: Display: FMixerPlatformXAudio2::StopAudioStream() called. InstanceID=1, StreamState=4
+[2025.10.17-20.21.20:116][861]LogAudioMixer: Display: FMixerPlatformXAudio2::StopAudioStream() called. InstanceID=1, StreamState=2
+[2025.10.17-20.21.20:125][861]LogAudioMixer: Deinitializing Audio Bus Subsystem for audio device with ID -1
+[2025.10.17-20.21.20:125][861]LogAudio: Display: Audio Device Manager Shutdown
+[2025.10.17-20.21.20:126][861]LogWindowsTextInputMethodSystem: Activated input method: English (United Kingdom) - (Keyboard).
+[2025.10.17-20.21.20:129][861]LogSlate: Slate User Destroyed.  User Index 0, Is Virtual User: 0
+[2025.10.17-20.21.20:130][861]LogExit: Preparing to exit.
+[2025.10.17-20.21.20:233][861]LogUObjectHash: Compacting FUObjectHashTables data took   0.71ms
+[2025.10.17-20.21.21:056][861]LogEditorDataStorage: Deinitializing
+[2025.10.17-20.21.21:104][861]LogDemo: Cleaned up 0 splitscreen connections, owner deletion: enabled
+[2025.10.17-20.21.21:136][861]LogExit: Editor shut down
+[2025.10.17-20.21.21:138][861]LogExit: Transaction tracking system shut down
+[2025.10.17-20.21.21:211][861]LogExit: Object subsystem successfully closed.
+[2025.10.17-20.21.21:313][861]LogShaderCompilers: Display: Shaders left to compile 0
+[2025.10.17-20.21.21:369][861]LogHoudiniEngineEditor: Shutting down the Houdini Engine Editor module.
+[2025.10.17-20.21.21:369][861]LogHoudiniEngineEditor: Houdini Engine Editor module shutdown complete.
+[2025.10.17-20.21.21:436][861]LogHoudiniEngine: Shutting down the Houdini Engine module.
+[2025.10.17-20.21.21:521][861]LogMemoryProfiler: Shutdown
+[2025.10.17-20.21.21:521][861]LogNetworkingProfiler: Shutdown
+[2025.10.17-20.21.21:521][861]LoadingProfiler: Shutdown
+[2025.10.17-20.21.21:521][861]LogTimingProfiler: Shutdown
+[2025.10.17-20.21.21:521][861]LogChaosVDEditor: [FChaosVDExtensionsManager::UnRegisterExtension] UnRegistering CVD Extension [FChaosVDGenericDebugDrawExtension] ...
+[2025.10.17-20.21.21:522][861]LogChaosVDEditor: [FChaosVDExtensionsManager::UnRegisterExtension] UnRegistering CVD Extension [FChaosVDAccelerationStructuresExtension] ...
+[2025.10.17-20.21.22:028][861]LogChaosDD: Chaos Debug Draw Shutdown
+[2025.10.17-20.21.22:028][861]RenderDocPlugin: plugin has been unloaded.
+[2025.10.17-20.21.22:062][861]LogHttp: Warning: [FHttpManager::Shutdown] Unbinding delegates for 1 outstanding Http Requests:
+[2025.10.17-20.21.22:062][861]LogHttp: Warning: 	verb=[POST] url=[https://datarouter.ol.epicgames.com/datarouter/api/v1/public/data?SessionID=%7B189D0650-45E1-DCCA-645E-57A87447C02E%7D&AppID=UEEditor.Rocket.Release&AppVersion=5.6.1-44394996%2B%2B%2BUE5%2BRelease-5.6&UserID=681cb2ae41a243acba60069fd3224202%7C%7Cfb7ea9ba-16f0-4d84-bf7a-95a178add061&AppEnvironment=datacollector-binary&UploadType=eteventstream] refs=[2] status=Processing
+[2025.10.17-20.21.22:078][861]LogEOSShared: FEOSSDKManager::Shutdown EOS_Shutdown Result=[EOS_Success]
+[2025.10.17-20.21.22:086][861]LogNFORDenoise: NFORDenoise function shutting down
+[2025.10.17-20.21.22:102][861]LogIris: FNetObjectFactoryRegistry::UnregisterFactory is unregistering factory: None name: NetActorFactory id: 0
+[2025.10.17-20.21.22:102][861]LogIris: FNetObjectFactoryRegistry::UnregisterFactory is unregistering factory: None name: NetSubObjectFactory id: 1
+[2025.10.17-20.21.22:102][861]LogPakFile: Destroying PakPlatformFile
+[2025.10.17-20.21.22:798][861]LogD3D12RHI: ~FD3D12DynamicRHI
+[2025.10.17-20.21.22:855][861]LogExit: Exiting.
+[2025.10.17-20.21.23:004][861]Log file closed, 10/17/25 21:21:23
