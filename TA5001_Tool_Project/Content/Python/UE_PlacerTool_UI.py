@@ -642,7 +642,6 @@ class AssetPlacerToolWindow(QWidget):
         # -------------------------
         # Preserve order from the AssetList_Widget
         asset_order = [self.AssetList_Widget.item(i).text() for i in range(self.AssetList_Widget.count())]
-
         assets = []
         for name in asset_order:
             params = self.Asset_Parameters.get(name)
@@ -670,23 +669,25 @@ class AssetPlacerToolWindow(QWidget):
         # Random or sequential mode
         random_mode = getattr(self, "Random_Checkbox", None) and self.Random_Checkbox.isChecked()
 
-        # In-Sequence Spawning Mode
-        in_sequence = getattr(self, "InSequence_Checkbox", None) and self.InSequence_Checkbox.isChecked()
-        if in_sequence:
-            # Build an alternating sequence of assets: Asset1, Asset2, Asset1, Asset2, etc.
+        #In-Sequence Spawning ---
+        in_sequence = getattr(self, "InSequence_Checkbox", None) and self.InSequence_Checkbox.isChecked() 
+        if in_sequence: 
+            # Build an alternating sequence of assets: Asset1, Asset2, Asset1, Asset2, etc. 
             spawn_sequence = [a["name"] for a in assets]
-            max_quantity = max(a["qty"] for a in assets)
-            new_sequence = []
-            for i in range(max_quantity):
-                for asset_name in spawn_sequence:
-                    asset_data = next((a for a in assets if a["name"] == asset_name), None)
-                    if asset_data and asset_data["qty"] > i:
-                        new_sequence.append(asset_data)
-            # Replace the assets list with a fully expanded ordered list for in-sequence spawning
-            sequence_index = 0
+            unreal.log(spawn_sequence) #DEBUG
+            max_quantity = max(a["qty"] for a in assets) 
+            unreal.log(max_quantity) #DEBUG
+            new_sequence = [] 
+            for i in range(max_quantity): 
+                for asset_name in spawn_sequence: 
+                    asset_data = next((a for a in assets if a["name"] == asset_name), None) 
+                    if asset_data and asset_data["qty"] > i: 
+                        new_sequence.append(asset_data) 
+            # Replace the assets list with a fully expanded ordered list for in-sequence spawning 
+            sequence_index = 0 
             total_sequence = len(new_sequence)
-            unreal.log("InSequence mode active — alternating assets in sequence along spline.")
-        else:
+            unreal.log("InSequence mode active — alternating assets in sequence along spline.") 
+        else: 
             unreal.log("Standard mode — spawning one asset type at a time.")
 
         # -------------------------
@@ -698,39 +699,49 @@ class AssetPlacerToolWindow(QWidget):
             unreal.log_warning("[Generate] Selected_Spline_Path contains no 'Point Data'.")
             return
 
+        # Distances and positions arrays for interpolation
         distances = [float(p["Distance Along Spline"]) for p in point_data]
-        positions = [p["World Location"] for p in point_data]
-        directions = [p["Direction"] for p in point_data]
+        positions = [p["World Location"] for p in point_data]     # tuples (x,y,z)
+        directions = [p["Direction"] for p in point_data]         # tuples (x,y,z)
 
         total_length = float(spline.get("Total Spline Length", distances[-1] if distances else 0.0))
 
+        # Linear interpolation helper
         def lerp(a, b, t):
             return a + (b - a) * t
 
         def lerp_tuple(a, b, t):
             return (lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t))
 
+        # Sample position and direction at arbitrary distance along spline using linear interpolation between point_data
         def sample_at_distance(distance):
+            # clamp
             if distance <= distances[0]:
                 return positions[0], directions[0]
             if distance >= distances[-1]:
                 return positions[-1], directions[-1]
+
+            # find segment
             idx = 0
             while idx < len(distances) - 1 and not (distances[idx] <= distance <= distances[idx + 1]):
                 idx += 1
+
             d0, d1 = distances[idx], distances[idx + 1]
             seg_len = d1 - d0 if (d1 - d0) != 0 else 1e-6
             t = (distance - d0) / seg_len
             pos = lerp_tuple(positions[idx], positions[idx + 1], t)
             dirv = lerp_tuple(directions[idx], directions[idx + 1], t)
+            # normalize direction
             mag = math.sqrt(dirv[0]**2 + dirv[1]**2 + dirv[2]**2)
             if mag > 1e-6:
                 dirv = (dirv[0]/mag, dirv[1]/mag, dirv[2]/mag)
             return pos, dirv
 
+        # Helper: convert tuple to unreal.Vector
         def to_vector(t):
             return unreal.Vector(float(t[0]), float(t[1]), float(t[2]))
 
+        # Helper: rotator from direction vector (forward)
         def rotator_from_direction(dir_vec):
             x, y, z = dir_vec
             mag_xy = math.hypot(x, y)
@@ -740,7 +751,7 @@ class AssetPlacerToolWindow(QWidget):
             else:
                 yaw = math.degrees(math.atan2(y, x))
                 pitch = math.degrees(math.atan2(z, mag_xy))
-            return unreal.Rotator(pitch, yaw, 0.0)
+            return unreal.Rotator(pitch, yaw, 0.0)  # roll = 0
 
         # -------------------------
         # Section 4: Spawn loop with overlap avoidance
@@ -751,43 +762,59 @@ class AssetPlacerToolWindow(QWidget):
             unreal.log_warning("[Generate] Total quantity is 0. Nothing to do.")
             return
 
+        # Keep track of spawned actors to check overlap against
         spawned_actors = []
+
+        #unreal.set_actor_transform() argument 'teleport' is false
         teleport = False
+
+        # Starting distance: spawn first at start of spline (0.0)
         current_distance = 0.0
+
+        #Track previously spawned actor for the cross-type spacing
+        previous_actor = None
+
+        # Safety counters
         spawn_attempts = 0
         MAX_ATTEMPTS = total_remaining * 20 + 1000
 
+        # Main generation loop: continue until no remaining or run out of spline
         while total_remaining > 0 and spawn_attempts < MAX_ATTEMPTS:
             spawn_attempts += 1
 
-            # Choose asset based on mode
-            if in_sequence:
-                if sequence_index >= total_sequence:
-                    unreal.log("[Generate] Completed all sequence assets.")
-                    break
-                chosen = new_sequence[sequence_index]
+            # Choose an asset (random or sequential)
+            if in_sequence: 
+                if sequence_index >= total_sequence: 
+                    unreal.log("[Generate] Completed all sequence assets.") 
+                    break 
+                chosen = new_sequence[sequence_index] 
                 sequence_index += 1
-            elif random_mode:
-                choices = [a for a in assets if a["qty"] > 0]
-                if not choices:
-                    break
-                chosen = random.choice(choices)
-            else:
-                chosen = next((a for a in assets if a["qty"] > 0), None)
-                if not chosen:
+            elif random_mode: 
+                choices = [a for a in assets if a["qty"] > 0] 
+                if not choices: 
+                    break 
+                chosen = random.choice(choices) 
+            
+            else: 
+                chosen = next((a for a in assets if a["qty"] > 0), None) 
+                if not chosen: 
                     break
 
+            #Get Correct name/params for this chosen asset
             name = chosen["name"]
             params = chosen["params"]
 
+            # --- Sample parameters (default = min, optional _max = max) ---
+            # Spacing
             spacing = float(params.get("spacing", 0.0))
-            if hasattr(self, "Spacing_Range_Checkbox") and self.Spacing_Range_Checkbox.isChecked():
+            if self.Spacing_Range_Checkbox.isChecked():
                 if params.get("spacing_max") is not None and params.get("spacing_max") > spacing:
                     spacing = random.uniform(spacing, float(params["spacing_max"]))
 
+            # Scale (per-axis)
             default_scale = params.get("scale", [1.0, 1.0, 1.0])
             scale_max = params.get("scale_max")
-            if hasattr(self, "Scale_Range_Checkbox") and self.Scale_Range_Checkbox.isChecked():
+            if self.Scale_Range_Checkbox.isChecked():
                 if scale_max:
                     sx = random.uniform(float(default_scale[0]), float(scale_max[0]))
                     sy = random.uniform(float(default_scale[1]), float(scale_max[1]))
@@ -795,10 +822,11 @@ class AssetPlacerToolWindow(QWidget):
             else:
                 sx, sy, sz = float(default_scale[0]), float(default_scale[1]), float(default_scale[2])
 
+            # Rotation (per-axis Euler). If rotation_max present, random between default and max; otherwise will use spline rot
             rot_default = params.get("rotation", None)
             rot_max = params.get("rotation_max", None)
             use_user_rotation = bool(rot_default is not None)
-            if hasattr(self, "Rotation_Range_Checkbox") and self.Rotation_Range_Checkbox.isChecked():
+            if self.Rotation_Range_Checkbox.isChecked():
                 if rot_max:
                     rx = random.uniform(float(rot_default[0]), float(rot_max[0]))
                     ry = random.uniform(float(rot_default[1]), float(rot_max[1]))
@@ -812,20 +840,83 @@ class AssetPlacerToolWindow(QWidget):
                 user_rotator = None
                 use_user_rotation = False
 
+            # Scatter (single float)
             scatter = float(params.get("scatter", 0.0))
 
+            #Offset next spawn start based on previous actor ---
+            # --- Apply dynamic pre-sample spacing ---
+            try:
+                if previous_actor:
+                    prev_origin, prev_extent = previous_actor.get_actor_bounds(True)
+                    prev_size = max(prev_extent.x, prev_extent.y, prev_extent.z)
+                else:
+                    prev_size = 0.0
+
+                # Estimate the next mesh half-size based on its static mesh asset bounds
+                est_curr_half = 0.0
+                asset_path = self.Asset_File_Paths.get(name)
+                if asset_path:
+                    asset_obj = unreal.load_asset(asset_path)
+                    if asset_obj and hasattr(asset_obj, "get_bounds"):
+                        try:
+                            bounds = asset_obj.get_bounds()
+                            box_extent = bounds.box_extent
+                            est_curr_half = max(box_extent.x, box_extent.y, box_extent.z)
+                        except Exception:
+                            pass
+
+                user_spacing = float(params.get("spacing", 0.0))
+                advance = prev_size + est_curr_half + user_spacing
+                current_distance += advance
+
+                unreal.log(f"[Pre-Sample Offset] +{advance:.1f} (prev={prev_size:.1f}, next_est={est_curr_half:.1f}, spacing={user_spacing:.1f})")
+
+            except Exception as e:
+                unreal.log_warning(f"[Pre-Sample Offset] Failed: {e}")
+
+            # --- Determine candidate spawn location & rotation by sampling spline at current_distance ---
             pos_tuple, dir_vec = sample_at_distance(current_distance)
-            candidate_loc = to_vector(pos_tuple)
-            base_rot = user_rotator if use_user_rotation else rotator_from_direction(dir_vec)
+            dir_vector = unreal.Vector(dir_vec[0], dir_vec[1], dir_vec[2])
+
+            # Get previous actor size (if any)
+            if previous_actor:
+                prev_origin, prev_extent = previous_actor.get_actor_bounds(True)
+                prev_size = max(prev_extent.x, prev_extent.y, prev_extent.z)
+            else:
+                prev_size = 0.0
+
+            # Estimate current half-size (safe default before spawn)
+            approx_half_size = 50.0
+
+            # Compute total spacing shift (so spawn point is ahead of the previous mesh)
+            user_spacing = float(params.get("spacing", 0.0))
+            spawn_shift = (prev_size + approx_half_size + user_spacing)
+
+            # Shift spawn location *forward* along the spline direction
+            candidate_loc = to_vector(pos_tuple) + (dir_vector * spawn_shift)
+
+            # Rotation setup
+            if use_user_rotation:
+                base_rot = user_rotator
+            else:
+                base_rot = rotator_from_direction(dir_vec)
+
+            # Build spawn transform
             spawn_transform = unreal.Transform(candidate_loc, base_rot, unreal.Vector(sx, sy, sz))
 
+            # --- Overlap avoidance: try spawn, check overlap, if overlap destroy and step forward ---
+            # We'll attempt a limited number of trial spawns for this chosen asset.
             trial_attempts = 0
             MAX_TRIALS = 25
             spawned_success = False
 
+            # Obtain asset UObject path and asset_obj
             asset_path = self.Asset_File_Paths.get(name)
+            unreal.log_warning(asset_path) #DEBUGGING
             if not asset_path:
                 unreal.log_warning(f"[Generate] Missing path for asset '{name}'. Skipping this asset.")
+                # Do not decrement qty to allow the user to correct path and regenerate
+                # If nothing is spawnable, outer loop will abort later
                 continue
 
             asset_obj = unreal.load_asset(asset_path)
@@ -836,11 +927,16 @@ class AssetPlacerToolWindow(QWidget):
             while trial_attempts < MAX_TRIALS:
                 trial_attempts += 1
 
+                # Apply scatter as a random offset around the candidate location (local right & up)
                 scattered_loc = unreal.Vector(candidate_loc.x, candidate_loc.y, candidate_loc.z)
                 if scatter != 0.0:
+                    # compute local right from dir_vec
                     right = (-dir_vec[1], dir_vec[0], 0.0)
                     rmag = math.sqrt(right[0]**2 + right[1]**2 + right[2]**2)
-                    right = (right[0]/rmag, right[1]/rmag, right[2]/rmag) if rmag > 1e-6 else (1.0, 0.0, 0.0)
+                    if rmag > 1e-6:
+                        right = (right[0]/rmag, right[1]/rmag, right[2]/rmag)
+                    else:
+                        right = (1.0, 0.0, 0.0)
                     up = (0.0, 0.0, 1.0)
                     off_r = random.uniform(-scatter, scatter)
                     off_u = random.uniform(-scatter, scatter)
@@ -848,35 +944,43 @@ class AssetPlacerToolWindow(QWidget):
                     scattered_loc.y += right[1] * off_r + up[1] * off_u
                     scattered_loc.z += right[2] * off_r + up[2] * off_u
 
+                # Spawn a trial actor at scattered_loc (we'll destroy it if overlapping)
                 try:
                     trial_actor = actor_subsystem.spawn_actor_from_object(asset_obj, scattered_loc)
                 except Exception as e:
                     unreal.log_warning(f"[Generate] spawn_actor_from_object failed for '{name}': {e}")
                     break
 
+                # Immediately set full transform (with scale & rotation)
                 try:
                     trial_transform = unreal.Transform(scattered_loc, base_rot, unreal.Vector(sx, sy, sz))
+                    # Use the two-arg form (transform, sweep) because some builds require only two args
                     trial_actor.set_actor_transform(trial_transform, False, teleport)
                 except Exception:
+                    # Fallback: set location/rotation/scale separately (safer)
                     try:
                         trial_actor.set_actor_location_and_rotation(scattered_loc, base_rot, False, unreal.TeleportType.NONE)
                         trial_actor.set_actor_scale3d(unreal.Vector(sx, sy, sz))
                     except Exception:
+                        # if setting transform fails, destroy trial and abort this trial
                         try:
                             actor_subsystem.destroy_actor(trial_actor)
                         except Exception:
                             pass
                         break
 
+                # Compute bounding box center and radius for this trial actor
                 try:
-                    bbox = trial_actor.get_components_bounding_box(True)
+                    bbox = trial_actor.get_components_bounding_box(True)  # True = only colliding components?
                     center = bbox.get_center()
-                    extent = bbox.get_extent()
+                    extent = bbox.get_extent()  # box half-size (Vector)
                     trial_radius = max(extent.x, extent.y, extent.z)
                 except Exception:
+                    # if bounding box retrieval fails, use a small conservative radius
                     center = trial_actor.get_actor_location()
                     trial_radius = 50.0
 
+                # Check overlap against already spawned actors' bounding boxes
                 overlap = False
                 for other in spawned_actors:
                     if not other or not hasattr(other, "get_actor_location"):
@@ -890,48 +994,127 @@ class AssetPlacerToolWindow(QWidget):
                         ocenter = other.get_actor_location()
                         other_radius = 50.0
 
+                    # distance between centers
                     dvec = center - ocenter
                     dist = math.sqrt(dvec.x**2 + dvec.y**2 + dvec.z**2)
-                    if dist < (trial_radius + other_radius + 2.0):
+                    # if distance less than sum of radii plus a small buffer, it's overlapping
+                    buffer = 2.0  # small slack
+                    if dist < (trial_radius + other_radius + buffer):
                         overlap = True
                         break
 
                 if not overlap:
+                    # Found a safe placement
                     spawned_actors.append(trial_actor)
                     spawned_success = True
                     break
+
+                # --- Adjust spacing based on actual mesh bounds (for all asset types) ---
+                try:
+                    # Get world bounds of the newly spawned actor
+                    bounds_origin, bounds_extent = trial_actor.get_actor_bounds(True)
+
+                    # Compute total width based on the largest axis (accounting for scaling)
+                    mesh_size = max(bounds_extent.x, bounds_extent.y, bounds_extent.z)
+
+                    # Use the user-defined spacing as additional buffer
+                    user_spacing = float(params.get("spacing", 0.0))
+
+                    # Compute total forward offset = mesh size (full width) + spacing
+                    #spacing_adjustment = mesh_size * 2.0 + user_spacing
+
+                    # Apply adjustment to next spawn distance
+                    total_step = mesh_size + user_spacing
+                    current_distance += total_step #spacing_adjustment
+
+                    # Log result for debugging
+                    unreal.log(f"[Spacing] Adjusted next spawn by mesh size={mesh_size:.1f} + spacing={user_spacing:.1f} → total +{spacing_adjustment:.1f}")
+
+                except Exception as e:
+                    unreal.log_warning(f"[Spacing] Failed to compute bounds spacing: {e}")
+
                 else:
+                    # Overlap found: destroy trial actor and step forward along spline by a small step and retry
                     try:
                         actor_subsystem.destroy_actor(trial_actor)
                     except Exception:
                         pass
+                    # increment current_distance by a small step (half-spacing or a small amount)
+                    # prefer at least a small move so we can escape local congestion
                     step_forward = max(spacing * 0.5, 10.0)
                     current_distance += step_forward
+                    # if moved beyond spline end, abort trials
                     if current_distance > total_length:
                         break
+                    # update candidate position and dir for next trial
                     pos_tuple, dir_vec = sample_at_distance(current_distance)
                     candidate_loc = unreal.Vector(pos_tuple[0], pos_tuple[1], pos_tuple[2])
+                    # update base rotation if using spline direction
                     if not use_user_rotation:
                         base_rot = rotator_from_direction(dir_vec)
+                    # continue while trial_attempts loop
 
+            # --- Post-spawn update (no double spacing) ---
+            if spawned_success:
+                try:
+                    bounds_origin, bounds_extent = trial_actor.get_actor_bounds(True)
+                    mesh_size = max(bounds_extent.x, bounds_extent.y, bounds_extent.z)
+                    unreal.log(f"[Spacing] (Info only) Mesh size={mesh_size:.1f}, no further offset applied — handled pre-sample.")
+                except Exception as e:
+                    unreal.log_warning(f"[Spacing] Failed to read bounds for info: {e}")
+
+
+            # Update previous_actor and advance distance based on both actors' sizes
+            try:
+                if previous_actor:
+                    prev_origin, prev_extent = previous_actor.get_actor_bounds(True)
+                    prev_size = max(prev_extent.x, prev_extent.y, prev_extent.z)
+                else:
+                    prev_size = 0.0
+
+                curr_origin, curr_extent = trial_actor.get_actor_bounds(True)
+                curr_size = max(curr_extent.x, curr_extent.y, curr_extent.z)
+                user_spacing = float(params.get("spacing", 0.0))
+
+                # Move forward by half of previous + half of current + spacing
+                step_forward = prev_size + curr_size + user_spacing
+                current_distance += step_forward
+
+                unreal.log(f"[Cross-Type Spacing] Step = prev {prev_size:.1f} + curr {curr_size:.1f} + spacing {user_spacing:.1f} → total +{step_forward:.1f}")
+
+            except Exception as e:
+                unreal.log_warning(f"[Cross-Type Spacing] Failed: {e}")
+
+            previous_actor = trial_actor
+            
+            # End trial attempts
             if not spawned_success:
                 unreal.log_warning(f"[Generate] Could not find non-overlapping spot for '{name}' after {trial_attempts} trials. Skipping this spawn.")
+                # We choose to decrement qty so we don't loop forever on impossible placements; adjust if you prefer
                 chosen["qty"] -= 1
                 total_remaining -= 1
-                current_distance += spacing
+                # Move forward by spacing anyway to progress along spline
+                #current_distance += spacing
                 if current_distance > total_length:
                     unreal.log("[Generate] Reached end of spline during overlap resolution.")
                     break
                 continue
 
+            # If spawned_success is True, we have appended the trial actor to spawned_actors already
+            # Decrement counts
             chosen["qty"] -= 1
             total_remaining -= 1
-            current_distance += spacing
+
+            # Advance current_distance by spacing for the next spawn center
+            #current_distance += spacing
             if current_distance > total_length:
                 unreal.log("[Generate] Reached end of spline - stopping generation.")
                 break
 
+        # End main spawn while loop
         unreal.log(f"[Generate] Completed generation. Remaining total: {total_remaining}")
+        
+
 
 
 
