@@ -34,7 +34,7 @@ class AssetPlacerToolWindow(QWidget):
 
             # --- SPLINE ---
             #Spline Widget Header
-            SplineWidget_header = QLabel("Current Spline:")
+            SplineWidget_header = QLabel("1. Current Spline:")
             SplineWidget_header.setStyleSheet("font-weight: bold; font-size: 12pt; padding: 2px;")
 
             #Selected Spline Button
@@ -57,7 +57,7 @@ class AssetPlacerToolWindow(QWidget):
             header_layout.setContentsMargins(0, 0, 0, 0)
             header_layout.setSpacing(6)
 
-            AssetList_header = QLabel("Asset List") #AssetList  Header
+            AssetList_header = QLabel("2. Asset List") #AssetList  Header
             AssetList_header.setStyleSheet("font-weight: bold; font-size:12pt; padding: 2px;")
             self.Random_Checkbox = QCheckBox("Random") #Random Checkbox
             self.InSequence_Checkbox = QCheckBox("Sequence") #Sequence Checkbox
@@ -119,7 +119,7 @@ class AssetPlacerToolWindow(QWidget):
             self.Param_Dock.setAllowedAreas(Qt.DockWidgetArea.RightDockWidgetArea)
             self.Param_Dock.setFeatures(self.Param_Dock.DockWidgetFeature.NoDockWidgetFeatures)
 
-            self.Param_header = QLabel("Selected Asset: <none>")
+            self.Param_header = QLabel("3. Selected Asset: <none>")
             self.Param_header.setStyleSheet("font-weight: bold; font-size: 12pt; padding: 2px;")
             self.Param_header.setFixedHeight(30)
 
@@ -492,7 +492,7 @@ class AssetPlacerToolWindow(QWidget):
             return
 
         asset_name = current.text()
-        self.Param_header.setText(f"Selected Asset: {asset_name}")
+        self.Param_header.setText(f"3. Selected Asset: {asset_name}")
 
         #Initialise Asset Parameters if new
         if asset_name not in self.Asset_Parameters:
@@ -605,6 +605,9 @@ class AssetPlacerToolWindow(QWidget):
 
     def Cancel(self):
         pass
+
+    def Apply(self):
+        pass  
 
     def Generate(self):
         """
@@ -1190,4 +1193,4 @@ def launchWindow():
     AssetPlacerToolWindow.window.setObjectName("ToolWindow")
     unreal.parent_external_window_to_slate(AssetPlacerToolWindow.window.winId())
 
-launchWindow()
+launchWindow()  
