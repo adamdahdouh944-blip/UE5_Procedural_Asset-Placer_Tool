@@ -13,6 +13,10 @@ from PySide6.QtWidgets import (QApplication, QWidget, QDockWidget,
 class AssetPlacerToolWindow(QWidget):
     def __init__(self, parent = None):
             super(AssetPlacerToolWindow, self).__init__(parent)
+
+            #Logs and keep track of Generation Data
+            self.Generation_Log = {}
+            self.Generation_Count = 0
             
             # --- MAIN WINDOW ---
             self.mainwindow = QMainWindow()
@@ -92,6 +96,21 @@ class AssetPlacerToolWindow(QWidget):
             self.RemoveFileButton.setVisible(False)
             self.RemoveFileButton.clicked.connect(self.OnRemoveFile)
 
+            #Generation Log Header
+            self.GenerationLogHeader = QLabel("Generation Log")
+            self.GenerationLogHeader.setStyleSheet("font-weight: bold; font-size: 10pt; padding: 1px;")
+            self.GenerationLogHeader.setVisible(False)
+
+            #Generation Log List
+            self.GenerationLogList = QListWidget()
+            self.GenerationLogList.setFixedSize(270,100)
+            self.GenerationLogList.setVisible(False)
+
+            #Generation Log Layout
+            self.GenerationLogLayout = QVBoxLayout()
+            self.GenerationLogLayout.addWidget(self.GenerationLogHeader)
+            self.GenerationLogLayout.addWidget(self.GenerationLogList)
+
             #Right Side Button Column
             button_column = QVBoxLayout()
             button_column.addWidget(self.RemoveFileButton)
@@ -107,6 +126,7 @@ class AssetPlacerToolWindow(QWidget):
             Left_Layout.addWidget(self.SplineButton)
             Left_Layout.addWidget(header_row)
             Left_Layout.addWidget(Asset_row)
+            Left_Layout.addLayout(self.GenerationLogLayout)
             Left_Layout.addStretch(1)
             Left_Container.setLayout(Left_Layout)
 
@@ -364,7 +384,7 @@ class AssetPlacerToolWindow(QWidget):
             self.ApplyButton = QPushButton("Apply")
             self.ApplyButton.setVisible(False) # ------ TEMPORARY -------
             self.CancelButton = QPushButton("Cancel")
-            self.CancelButton.setVisible(False) # ------ TEMPORARY -------
+            self.CancelButton.clicked.connect(self.Cancel)
 
             for button in [self.GenerateButton, self.ApplyButton, self.CancelButton]:
                 button.setFixedWidth(100)
@@ -603,8 +623,123 @@ class AssetPlacerToolWindow(QWidget):
             self.AssetList_Widget.takeItem(self.AssetList_Widget.row(current))
         self.UpdateRemoveButtonVisibility()
 
+    def UpdateGenerationLog(self, spawned_actors, assets, asset_file_paths):
+        '''
+        Logs all data from a completed generation into self.Generation_Log.
+        Stores asset parameters, file paths, spawn locations, and level references
+        '''
+        self.Generation_Count += 1
+        gen_name = f"Generation {self.Generation_Count}"
+
+        log_entry = {
+            "Asset List" : {},
+            "Parameters" : {},
+            "Spawned Assets" : {},
+            "Spawn Locations" : {}
+        }
+
+        # --- Asset List ---
+        for asset in assets:
+            asset_name = asset["name"]
+            asset_path = asset_file_paths.get(asset_name, "Unknown Path")
+            log_entry["Asset List"][asset_name] = asset_path
+
+        # --- Parameters ---
+        for asset in assets:
+            asset_name = asset["name"]
+            params = asset["params"].copy()
+            log_entry["Parameters"][asset_name] = {
+                key: params[key] for key in params
+            }
+
+        # --- Spawned Actors ---
+        for actor in spawned_actors:
+            if not actor:
+                continue
+            try:
+                actor_label = actor.get_actor_label()
+                actor_path = actor.get_path_name()
+                actor_loc = actor.get_actor_location()
+                log_entry["Spawned Assets"][actor_label] = actor_path
+                log_entry["Spawn Locations"][actor_label] = [actor_loc.x, actor_loc.y, actor_loc.z]
+            except Exception as e:
+                unreal.log_warning(f"[UpdateGenerationLog] Failed to log actor {e}")
+        
+        # --- Store this generation ---
+        self.Generation_Log[gen_name] = log_entry
+        unreal.log(f"[Generation Log] Added {gen_name} with {len(spawned_actors)} spawned assets.")
+
+        # --- Update UI ---
+        #Ensure Widgets Exist
+        if hasattr(self, "GenerationLogHeader") and hasattr(self, "GenerationLogList"):
+            #Show Header/List only if there's at least one generation
+            if self.Generation_Count > 0:
+                self.GenerationLogHeader.setVisible(True)
+                self.GenerationLogList.setVisible(True)
+            else:
+                self.GenerationLogHeader.setVisible(False)
+                self.GenerationLogList.setVisible(False)
+
+            #Refresh List
+            self.GenerationLogList.clear()
+            for gen in self.Generation_Log.keys():
+                self.GenerationLogList.addItem(gen)
+
     def Cancel(self):
-        pass
+        """
+        Cancels (deletes) the selected generation from the Generation Log list.
+        Destroys all actors from that generation and removes it from the log.
+        """
+        if not self.Generation_Log:
+            unreal.log_warning("[Cancel] No generation log found — nothing to cancel.")
+            return
+
+        # Check if a generation is selected in the list
+        selected_items = self.GenerationLogList.selectedItems() if hasattr(self, "GenerationLogList") else []
+        if not selected_items:
+            unreal.log_warning("[Cancel] No generation selected in the log list.")
+            return
+
+        selected_gen = selected_items[0].text()
+        if selected_gen not in self.Generation_Log:
+            unreal.log_warning(f"[Cancel] {selected_gen} not found in Generation_Log.")
+            return
+
+        gen_data = self.Generation_Log[selected_gen]
+        spawned_assets = gen_data.get("Spawned Assets", {})
+
+        actor_subsystem = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+        destroyed_count = 0
+
+        # Destroy actors in this generation
+        for label, path in spawned_assets.items():
+            try:
+                all_actors = actor_subsystem.get_all_level_actors()
+                target = next((a for a in all_actors if a.get_actor_label() == label or a.get_path_name() == path), None)
+
+                if target:
+                    actor_subsystem.destroy_actor(target)
+                    destroyed_count += 1
+                else:
+                    unreal.log_warning(f"[Cancel] Actor '{label}' not found in level.")
+            except Exception as e:
+                unreal.log_warning(f"[Cancel] Failed to destroy {label}: {e}")
+
+        # Remove from log and UI
+        del self.Generation_Log[selected_gen]
+        self.Generation_Count = max(0, self.Generation_Count - 1)
+
+        # Update UI list
+        self.GenerationLogList.clear()
+        for gen in self.Generation_Log.keys():
+            self.GenerationLogList.addItem(gen)
+
+        # Hide list if empty
+        if self.Generation_Count == 0:
+            self.GenerationLogHeader.setVisible(False)
+            self.GenerationLogList.setVisible(False)
+
+        unreal.log(f"[Cancel] Deleted {destroyed_count} actors from {selected_gen}.")
 
     def Apply(self):
         pass  
@@ -1114,13 +1249,12 @@ class AssetPlacerToolWindow(QWidget):
                 unreal.log("[Generate] Reached end of spline - stopping generation.")
                 break
 
+        #Log Generation
+        self.UpdateGenerationLog(spawned_actors, assets, self.Asset_File_Paths)
+
         # End main spawn while loop
         unreal.log(f"[Generate] Completed generation. Remaining total: {total_remaining}")
         
-
-
-
-
 
 def apply_unreal_palette(app):
     palette = QPalette()
