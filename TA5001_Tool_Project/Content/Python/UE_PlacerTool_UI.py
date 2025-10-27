@@ -1,5 +1,7 @@
 import unreal 
 import sys
+import copy
+import datetime
 import random
 import math
 #from UE_PlacerTool import AssetPlacerTool
@@ -104,12 +106,20 @@ class AssetPlacerToolWindow(QWidget):
             #Generation Log List
             self.GenerationLogList = QListWidget()
             self.GenerationLogList.setFixedSize(270,100)
+            self.GenerationLogList.itemSelectionChanged.connect(self.OnGenerationSelected)
             self.GenerationLogList.setVisible(False)
+
+            #Delete Generation Button
+            self.DeleteGeneration = QPushButton("Delete")
+            self.DeleteGeneration.setFixedWidth(75)
+            self.DeleteGeneration.setVisible(False)
+            self.DeleteGeneration.clicked.connect(self.Delete)
 
             #Generation Log Layout
             self.GenerationLogLayout = QVBoxLayout()
             self.GenerationLogLayout.addWidget(self.GenerationLogHeader)
             self.GenerationLogLayout.addWidget(self.GenerationLogList)
+            self.GenerationLogLayout.addWidget(self.DeleteGeneration)
 
             #Right Side Button Column
             button_column = QVBoxLayout()
@@ -382,11 +392,9 @@ class AssetPlacerToolWindow(QWidget):
             self.GenerateButton = QPushButton("Generate")
             self.GenerateButton.clicked.connect(self.Generate)
             self.ApplyButton = QPushButton("Apply")
-            self.ApplyButton.setVisible(False) # ------ TEMPORARY -------
-            self.CancelButton = QPushButton("Cancel")
-            self.CancelButton.clicked.connect(self.Cancel)
+            self.ApplyButton.clicked.connect(self.Apply)
 
-            for button in [self.GenerateButton, self.ApplyButton, self.CancelButton]:
+            for button in [self.GenerateButton, self.ApplyButton]:
                 button.setFixedWidth(100)
                 bottom_layout.addWidget(button)
 
@@ -632,11 +640,23 @@ class AssetPlacerToolWindow(QWidget):
         gen_name = f"Generation {self.Generation_Count}"
 
         log_entry = {
+            "Spline" : None,
             "Asset List" : {},
             "Parameters" : {},
             "Spawned Assets" : {},
             "Spawn Locations" : {}
         }
+
+        # --- Store the spline data used for this generation ---
+        if hasattr(self, "Selected_Spline_Path") and self.Selected_Spline_Path:
+            try:
+                # Deep copy of spline structure to preserve its state at generation time
+                log_entry["Spline"] = copy.deepcopy(self.Selected_Spline_Path)
+                unreal.log(f"[Generation Log] Stored spline data for {gen_name}.")
+            except Exception as e:
+                unreal.log_warning(f"[UpdateGenerationLog] Failed to store spline data: {e}")
+        else:
+            unreal.log_warning(f"[UpdateGenerationLog] No spline data found for {gen_name}.")
 
         # --- Asset List ---
         for asset in assets:
@@ -671,38 +691,86 @@ class AssetPlacerToolWindow(QWidget):
 
         # --- Update UI ---
         #Ensure Widgets Exist
-        if hasattr(self, "GenerationLogHeader") and hasattr(self, "GenerationLogList"):
+        if hasattr(self, "GenerationLogHeader") and hasattr(self, "GenerationLogList") and hasattr(self, "DeleteGeneration"):
             #Show Header/List only if there's at least one generation
             if self.Generation_Count > 0:
                 self.GenerationLogHeader.setVisible(True)
                 self.GenerationLogList.setVisible(True)
+                self.DeleteGeneration.setVisible(True)
             else:
                 self.GenerationLogHeader.setVisible(False)
                 self.GenerationLogList.setVisible(False)
+                self.DeleteGeneration.setVisible(False)
 
             #Refresh List
             self.GenerationLogList.clear()
             for gen in self.Generation_Log.keys():
                 self.GenerationLogList.addItem(gen)
 
-    def Cancel(self):
+    def OnGenerationSelected(self):
+        '''Load selected generation's data back into UI fields.'''
+        selected_items = self.GenerationLogList.selectedItems()
+        if not selected_items:
+            return
+        
+        gen_name = selected_items[0].text()
+        gen_data = self.Generation_Log.get(gen_name, {})
+        if not gen_data:
+            unreal.log_warning(f"[Apply] no data found for {gen_name}")
+            return
+        
+        #Restore spline (just visually or keep reference)
+        self.Selected_Spline_Path = gen_data.get("Spline", None)
+
+        #Repopulate asset list Widget
+        self.AssetList_Widget.clear()
+        for asset_name in gen_data["Asset List"].keys():
+            self.AssetList_Widget.addItem(asset_name)
+
+        #Restore Parameter dictionary
+        self.Asset_Parameters = gen_data["Parameters"]
+
+        unreal.log(f"[Apply] Loaded parameters and assets for {gen_name}")
+
+    def GetActorByPath(self, path_or_label: str):
         """
-        Cancels (deletes) the selected generation from the Generation Log list.
+        Finds an actor in the current level by matching its label or path name.
+        Safe replacement for deprecated get_actor_reference().
+        """
+        actor_subsystem = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+        all_actors = actor_subsystem.get_all_level_actors()
+
+        # Try to match by exact path first
+        for actor in all_actors:
+            if actor.get_path_name() == path_or_label:
+                return actor
+
+        # Fallback: match by actor label
+        for actor in all_actors:
+            if actor.get_actor_label() == path_or_label:
+                return actor
+
+        unreal.log_warning(f"[GetActorByPath] Could not find actor for '{path_or_label}'")
+        return None
+
+    def Delete(self):
+        """
+        Deletes the selected generation from the Generation Log list.
         Destroys all actors from that generation and removes it from the log.
         """
         if not self.Generation_Log:
-            unreal.log_warning("[Cancel] No generation log found — nothing to cancel.")
+            unreal.log_warning("[Delete] No generation log found — nothing to cancel.")
             return
 
         # Check if a generation is selected in the list
         selected_items = self.GenerationLogList.selectedItems() if hasattr(self, "GenerationLogList") else []
         if not selected_items:
-            unreal.log_warning("[Cancel] No generation selected in the log list.")
+            unreal.log_warning("[Delete] No generation selected in the log list.")
             return
 
         selected_gen = selected_items[0].text()
         if selected_gen not in self.Generation_Log:
-            unreal.log_warning(f"[Cancel] {selected_gen} not found in Generation_Log.")
+            unreal.log_warning(f"[Delete] {selected_gen} not found in Generation_Log.")
             return
 
         gen_data = self.Generation_Log[selected_gen]
@@ -721,9 +789,9 @@ class AssetPlacerToolWindow(QWidget):
                     actor_subsystem.destroy_actor(target)
                     destroyed_count += 1
                 else:
-                    unreal.log_warning(f"[Cancel] Actor '{label}' not found in level.")
+                    unreal.log_warning(f"[Delete] Actor '{label}' not found in level.")
             except Exception as e:
-                unreal.log_warning(f"[Cancel] Failed to destroy {label}: {e}")
+                unreal.log_warning(f"[Delete] Failed to destroy {label}: {e}")
 
         # Remove from log and UI
         del self.Generation_Log[selected_gen]
@@ -738,11 +806,94 @@ class AssetPlacerToolWindow(QWidget):
         if self.Generation_Count == 0:
             self.GenerationLogHeader.setVisible(False)
             self.GenerationLogList.setVisible(False)
+            self.DeleteGeneration.setVisible(False)
 
-        unreal.log(f"[Cancel] Deleted {destroyed_count} actors from {selected_gen}.")
+        unreal.log(f"[Delete] Deleted {destroyed_count} actors from {selected_gen}.")
 
     def Apply(self):
-        pass  
+        '''Applies modified parameters, transforms, or spline changes to an existing generation.'''
+        selected_items = self.GenerationLogList.selectedItems()
+        if not selected_items:
+            unreal.log_warning("[Apply] No generation selected to update.")
+            return
+        
+        gen_name = selected_items[0].text()
+        gen_data = self.Generation_Log.get(gen_name)
+        if not gen_data:
+            unreal.log_warning(f"[Apply] no data found for {gen_name}")
+            return
+        
+        #Update stored parameters from current UI
+        gen_data["Parameters"] = self.Asset_Parameters.copy()
+        gen_data["Spline"] = self.Selected_Spline_Path
+
+        spline_data = gen_data["Spline"]
+        if not spline_data:
+            unreal.log_warning("[Apply] No spline data found for selected generation.")
+            return
+        
+        point_data = spline_data.get("Point Data", [])
+        if not point_data:
+            unreal.log_warning("[Apply] Spline data is empty.")
+            return
+        
+        distances = [float(p["Distance Along Spline"]) for p in point_data]
+        positions = [p["World Location"] for p in point_data]
+        directions = [p["Direction"] for p in point_data]
+        total_length = float(spline_data.get("Total Spline Length", distances[-1]))
+
+        def lerp(a, b, t): return a + (b - a) * t
+        def lerp_tuple(a, b, t): return (lerp(a[0], b[0], t), lerp(a[1], b[1]), lerp(a[2], b[2]))
+
+        def sample_at_distance(distance):
+            if distance <= distances[0]:
+                return positions[0], directions[0]
+            if distance >= distances[-1]:
+                return positions[-1], directions[-1]
+            idx = 0
+            while idx < len(distances) - 1 and not (distances[idx] <= distance <= distances[idx + 1]):
+                idx += 1
+            d0, d1 = distances[idx], distances[idx + 1]
+            seg_len = d1 - d0 if (d1 - d0) != 0 else 1e-6
+            t = (distance - d0) / seg_len
+            pos = lerp_tuple(positions[idx], positions[idx + 1], t)
+            dirv = lerp_tuple(directions[idx], directions[idx + 1], t)
+            mag = math.sqrt(dirv[0]**2 + dirv[1]**2 + dirv[2]**2)
+            if mag > 1e-6:
+                dirv = (dirv[0]/mag, dirv[1]/mag, dirv[2]/mag)
+            return pos, dirv
+
+        # --- Apply changes to each spawned actor ---
+        actor_subsystem = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+        for actor_label, actor_path in gen_data["Spawned Assets"].items():
+            actor = self.GetActorByPath(actor_path)
+            if not actor:
+                continue
+
+            params = None
+            for pset in gen_data["Parameters"].values():
+                if pset:  # pick the first match
+                    params = pset
+                    break
+            if not params:
+                continue
+
+            spacing = float(params.get("spacing", 0.0))
+            scale = params.get("scale", [1.0, 1.0, 1.0])
+            rotation = params.get("rotation", [0.0, 0.0, 0.0])
+
+            # Recalculate spline sample (if spline changed)
+            old_loc = actor.get_actor_location()
+            dist_along = min(distances, key=lambda d: abs(d - old_loc.x))  # quick hack; can be improved
+            new_pos_tuple, new_dir = sample_at_distance(dist_along)
+            new_loc = unreal.Vector(new_pos_tuple[0], new_pos_tuple[1], new_pos_tuple[2])
+            new_rot = unreal.Rotator(float(rotation[0]), float(rotation[1]), float(rotation[2]))
+            new_scl = unreal.Vector(float(scale[0]), float(scale[1]), float(scale[2]))
+
+            new_transform = unreal.Transform(new_loc, new_rot, new_scl)
+            actor.set_actor_transform(new_transform, False, False)
+
+        unreal.log(f"[Apply] Applied parameter and spline updates to {gen_name}.")
 
     def Generate(self):
         """
@@ -752,7 +903,6 @@ class AssetPlacerToolWindow(QWidget):
         - self.Selected_Spline_Path
         Adds overlap avoidance by trial-spawning and destroying colliding actors, then moving forward.
         """
-
         # -------------------------
         # Section 1: Validation / Safety
         # -------------------------
@@ -1254,7 +1404,7 @@ class AssetPlacerToolWindow(QWidget):
 
         # End main spawn while loop
         unreal.log(f"[Generate] Completed generation. Remaining total: {total_remaining}")
-        
+
 
 def apply_unreal_palette(app):
     palette = QPalette()
