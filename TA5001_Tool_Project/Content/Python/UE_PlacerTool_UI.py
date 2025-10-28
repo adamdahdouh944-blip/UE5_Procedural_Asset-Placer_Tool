@@ -1,11 +1,8 @@
 import unreal 
 import sys
 import copy
-import datetime
 import random
 import math
-#from UE_PlacerTool import AssetPlacerTool
-from functools import partial
 from PySide6.QtGui import QPalette, QColor
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QApplication, QWidget, QDockWidget, 
@@ -353,7 +350,6 @@ class AssetPlacerToolWindow(QWidget):
 
             #Connect Signals: When an Asset is Clicked in Asset List, Update Parameter List
             #Store and save parameters for each asset
-            #Switch from Random to InSequence
             self.AssetList_Widget.currentItemChanged.connect(self.OnAssetSelected)
 
             self.Quantity_spin.valueChanged.connect(self.OnParameterChanged)
@@ -632,25 +628,35 @@ class AssetPlacerToolWindow(QWidget):
         self.UpdateRemoveButtonVisibility()
 
     def UpdateGenerationLog(self, spawned_actors, assets, asset_file_paths):
-        '''
+        """
         Logs all data from a completed generation into self.Generation_Log.
-        Stores asset parameters, file paths, spawn locations, and level references
-        '''
-        self.Generation_Count += 1
-        gen_name = f"Generation {self.Generation_Count}"
+        Stores asset parameters, file paths, spawn locations, and level references.
+        """
+        # --- Safety Cleanup ---
+        # Remove invalid or empty entries before logging a new generation
+        invalid_gens = [k for k, v in self.Generation_Log.items() if not v or "Spawned Assets" not in v]
+        for g in invalid_gens:
+            del self.Generation_Log[g]
 
+        # --- Unique Generation Naming ---
+        base_name = "Generation"
+        index = 1
+        while f"{base_name} {index}" in self.Generation_Log:
+            index += 1
+        gen_name = f"{base_name} {index}"
+
+        # --- Build Log Entry ---
         log_entry = {
-            "Spline" : None,
-            "Asset List" : {},
-            "Parameters" : {},
-            "Spawned Assets" : {},
-            "Spawn Locations" : {}
+            "Spline": None,
+            "Asset List": {},
+            "Parameters": {},
+            "Spawned Assets": {},
+            "Spawn Locations": {},
         }
 
-        # --- Store the spline data used for this generation ---
+        # --- Store spline data ---
         if hasattr(self, "Selected_Spline_Path") and self.Selected_Spline_Path:
             try:
-                # Deep copy of spline structure to preserve its state at generation time
                 log_entry["Spline"] = copy.deepcopy(self.Selected_Spline_Path)
                 unreal.log(f"[Generation Log] Stored spline data for {gen_name}.")
             except Exception as e:
@@ -668,9 +674,7 @@ class AssetPlacerToolWindow(QWidget):
         for asset in assets:
             asset_name = asset["name"]
             params = asset["params"].copy()
-            log_entry["Parameters"][asset_name] = {
-                key: params[key] for key in params
-            }
+            log_entry["Parameters"][asset_name] = dict(params)
 
         # --- Spawned Actors ---
         for actor in spawned_actors:
@@ -683,29 +687,41 @@ class AssetPlacerToolWindow(QWidget):
                 log_entry["Spawned Assets"][actor_label] = actor_path
                 log_entry["Spawn Locations"][actor_label] = [actor_loc.x, actor_loc.y, actor_loc.z]
             except Exception as e:
-                unreal.log_warning(f"[UpdateGenerationLog] Failed to log actor {e}")
-        
-        # --- Store this generation ---
+                unreal.log_warning(f"[UpdateGenerationLog] Failed to log actor: {e}")
+
+        # --- Spawn order & distances ---
+        try:
+            if hasattr(self, "_last_spawn_order"):
+                log_entry["Spawn Order"] = list(self._last_spawn_order)
+            else:
+                log_entry["Spawn Order"] = [a.get_actor_label() for a in spawned_actors if unreal.Object.is_valid(a)]
+
+            if hasattr(self, "_last_spawn_distances"):
+                log_entry["Spawn Distances"] = dict(self._last_spawn_distances)
+            else:
+                log_entry["Spawn Distances"] = {}
+        finally:
+            if hasattr(self, "_last_spawn_order"):
+                del self._last_spawn_order
+            if hasattr(self, "_last_spawn_distances"):
+                del self._last_spawn_distances
+
+        # --- Add to dictionary ---
         self.Generation_Log[gen_name] = log_entry
+        self.Generation_Count = len(self.Generation_Log)
         unreal.log(f"[Generation Log] Added {gen_name} with {len(spawned_actors)} spawned assets.")
 
         # --- Update UI ---
-        #Ensure Widgets Exist
         if hasattr(self, "GenerationLogHeader") and hasattr(self, "GenerationLogList") and hasattr(self, "DeleteGeneration"):
-            #Show Header/List only if there's at least one generation
-            if self.Generation_Count > 0:
-                self.GenerationLogHeader.setVisible(True)
-                self.GenerationLogList.setVisible(True)
-                self.DeleteGeneration.setVisible(True)
-            else:
-                self.GenerationLogHeader.setVisible(False)
-                self.GenerationLogList.setVisible(False)
-                self.DeleteGeneration.setVisible(False)
-
-            #Refresh List
             self.GenerationLogList.clear()
             for gen in self.Generation_Log.keys():
                 self.GenerationLogList.addItem(gen)
+
+            # Show or hide log UI dynamically
+            has_logs = len(self.Generation_Log) > 0
+            self.GenerationLogHeader.setVisible(has_logs)
+            self.GenerationLogList.setVisible(has_logs)
+            self.DeleteGeneration.setVisible(has_logs)
 
     def OnGenerationSelected(self):
         '''Load selected generation's data back into UI fields.'''
@@ -752,6 +768,30 @@ class AssetPlacerToolWindow(QWidget):
 
         unreal.log_warning(f"[GetActorByPath] Could not find actor for '{path_or_label}'")
         return None
+    
+    def ComputePlacementAdvance(self, previous_actor, asset_obj, params):
+        """Returns the same spacing advance used in Generate()."""
+        try:
+            if previous_actor:
+                prev_origin, prev_extent = previous_actor.get_actor_bounds(True)
+                prev_size = max(prev_extent.x, prev_extent.y, prev_extent.z)
+            else:
+                prev_size = 0.0
+
+            est_curr_half = 0.0
+            if asset_obj and hasattr(asset_obj, "get_bounds"):
+                try:
+                    bounds = asset_obj.get_bounds()
+                    est_curr_half = max(bounds.box_extent.x, bounds.box_extent.y, bounds.box_extent.z)
+                except Exception:
+                    pass
+
+            user_spacing = float(params.get("spacing", 0.0))
+            advance = prev_size + est_curr_half + user_spacing
+            return advance
+        except Exception as e:
+            unreal.log_warning(f"[Advance] Failed to compute spacing: {e}")
+            return 0.0
 
     def Delete(self):
         """
@@ -759,11 +799,14 @@ class AssetPlacerToolWindow(QWidget):
         Destroys all actors from that generation and removes it from the log.
         """
         if not self.Generation_Log:
-            unreal.log_warning("[Delete] No generation log found — nothing to cancel.")
+            unreal.log_warning("[Delete] No generation log found — nothing to delete.")
             return
 
-        # Check if a generation is selected in the list
-        selected_items = self.GenerationLogList.selectedItems() if hasattr(self, "GenerationLogList") else []
+        if not hasattr(self, "GenerationLogList") or self.GenerationLogList.count() == 0:
+            unreal.log_warning("[Delete] No generation list found or it's empty.")
+            return
+
+        selected_items = self.GenerationLogList.selectedItems()
         if not selected_items:
             unreal.log_warning("[Delete] No generation selected in the log list.")
             return
@@ -775,11 +818,10 @@ class AssetPlacerToolWindow(QWidget):
 
         gen_data = self.Generation_Log[selected_gen]
         spawned_assets = gen_data.get("Spawned Assets", {})
-
         actor_subsystem = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
         destroyed_count = 0
 
-        # Destroy actors in this generation
+        # --- Destroy all actors belonging to this generation ---
         for label, path in spawned_assets.items():
             try:
                 all_actors = actor_subsystem.get_all_level_actors()
@@ -791,59 +833,64 @@ class AssetPlacerToolWindow(QWidget):
                 else:
                     unreal.log_warning(f"[Delete] Actor '{label}' not found in level.")
             except Exception as e:
-                unreal.log_warning(f"[Delete] Failed to destroy {label}: {e}")
+                unreal.log_warning(f"[Delete] Failed to destroy '{label}': {e}")
 
-        # Remove from log and UI
-        del self.Generation_Log[selected_gen]
-        self.Generation_Count = max(0, self.Generation_Count - 1)
+        # --- Remove generation from dictionary ---
+        if selected_gen in self.Generation_Log:
+            del self.Generation_Log[selected_gen]
 
-        # Update UI list
+        # --- Update generation count and refresh UI ---
+        self.Generation_Count = len(self.Generation_Log)
         self.GenerationLogList.clear()
+
         for gen in self.Generation_Log.keys():
             self.GenerationLogList.addItem(gen)
 
-        # Hide list if empty
-        if self.Generation_Count == 0:
-            self.GenerationLogHeader.setVisible(False)
-            self.GenerationLogList.setVisible(False)
-            self.DeleteGeneration.setVisible(False)
+        # --- Hide UI if no generations remain ---
+        has_logs = len(self.Generation_Log) > 0
+        self.GenerationLogHeader.setVisible(has_logs)
+        self.GenerationLogList.setVisible(has_logs)
+        self.DeleteGeneration.setVisible(has_logs)
 
-        unreal.log(f"[Delete] Deleted {destroyed_count} actors from {selected_gen}.")
+        unreal.log(f"[Delete] Deleted {destroyed_count} actors from {selected_gen}. Remaining generations: {len(self.Generation_Log)}.")
 
     def Apply(self):
-        '''Applies modified parameters, transforms, or spline changes to an existing generation.'''
+        """Applies modified parameters, transforms, scatter, and spline changes to an existing generation."""
         selected_items = self.GenerationLogList.selectedItems()
         if not selected_items:
             unreal.log_warning("[Apply] No generation selected to update.")
             return
-        
+
         gen_name = selected_items[0].text()
         gen_data = self.Generation_Log.get(gen_name)
         if not gen_data:
-            unreal.log_warning(f"[Apply] no data found for {gen_name}")
+            unreal.log_warning(f"[Apply] No data found for {gen_name}")
             return
-        
-        #Update stored parameters from current UI
-        gen_data["Parameters"] = self.Asset_Parameters.copy()
+
+        # --- Update stored parameters from current UI ---
+        new_params = self.Asset_Parameters.copy()
         gen_data["Spline"] = self.Selected_Spline_Path
 
         spline_data = gen_data["Spline"]
         if not spline_data:
             unreal.log_warning("[Apply] No spline data found for selected generation.")
             return
-        
+
         point_data = spline_data.get("Point Data", [])
         if not point_data:
             unreal.log_warning("[Apply] Spline data is empty.")
             return
-        
+
+        # --- Extract spline info ---
         distances = [float(p["Distance Along Spline"]) for p in point_data]
         positions = [p["World Location"] for p in point_data]
         directions = [p["Direction"] for p in point_data]
-        total_length = float(spline_data.get("Total Spline Length", distances[-1]))
+        total_length = float(spline_data.get("Total Spline Length", distances[-1] if distances else 0.0))
 
+        # --- Maths functions ---
         def lerp(a, b, t): return a + (b - a) * t
-        def lerp_tuple(a, b, t): return (lerp(a[0], b[0], t), lerp(a[1], b[1]), lerp(a[2], b[2]))
+        def lerp_tuple(a, b, t):
+            return (lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t))
 
         def sample_at_distance(distance):
             if distance <= distances[0]:
@@ -863,37 +910,172 @@ class AssetPlacerToolWindow(QWidget):
                 dirv = (dirv[0]/mag, dirv[1]/mag, dirv[2]/mag)
             return pos, dirv
 
-        # --- Apply changes to each spawned actor ---
+        def to_vector(t):
+            return unreal.Vector(float(t[0]), float(t[1]), float(t[2]))
+
+        def rotator_from_direction(dir_vec):
+            x, y, z = dir_vec
+            mag_xy = math.hypot(x, y)
+            if mag_xy < 1e-6:
+                yaw = 0.0
+                pitch = 90.0 if z > 0 else -90.0
+            else:
+                yaw = math.degrees(math.atan2(y, x))
+                pitch = math.degrees(math.atan2(z, mag_xy))
+            return unreal.Rotator(pitch, yaw, 0.0)
+
+        # --- Determine if spacing changed ---
+        old_params = gen_data.get("Parameters", {})
+        spacing_changed = False
+        for asset_name, new_p in new_params.items():
+            old_p = old_params.get(asset_name, {})
+            if float(new_p.get("spacing", 0.0)) != float(old_p.get("spacing", 0.0)):
+                spacing_changed = True
+                break
+
+        # --- Begin reapplication of transforms ---
         actor_subsystem = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
-        for actor_label, actor_path in gen_data["Spawned Assets"].items():
+        spawned_assets = gen_data.get("Spawned Assets", {})
+        asset_list = gen_data.get("Asset List", {})
+
+        spawn_order = gen_data.get("Spawn Order", list(spawned_assets.keys()))
+        spawn_dist = gen_data.get("Spawn Distances", {})
+
+        current_distance = 0.0
+        previous_actor = None
+
+        for actor_label in spawn_order:
+            actor_path = spawned_assets.get(actor_label)
+            if not actor_path:
+                continue
+
+            actor = self.GetActorByPath(actor_path)
+            if not actor:
+                unreal.log_warning(f"[Apply] Actor '{actor_label}' not found in level, skipping.")
+                continue
+
+            # Determine which asset this actor belongs to
+            asset_name = None
+            for name in asset_list.keys():
+                if actor_label.startswith(name):
+                    asset_name = name
+                    break
+
+            params = new_params.get(asset_name, {})
+            scale = params.get("scale", [1.0, 1.0, 1.0])
+            rotation = params.get("rotation", None)
+            scatter = float(params.get("scatter", 0.0))
+
+            # --- Handle range parameters ---
+            spacing = float(params.get("spacing", 0.0))
+            if hasattr(self, "Spacing_Range_Checkbox") and self.Spacing_Range_Checkbox.isChecked():
+                spacing_max = params.get("spacing_max", None)
+                if spacing_max is not None:
+                    spacing = random.uniform(spacing, float(spacing_max))
+
+            if hasattr(self, "Scale_Range_Checkbox") and self.Scale_Range_Checkbox.isChecked():
+                scale_max = params.get("scale_max", None)
+                if scale_max:
+                    sx = random.uniform(float(scale[0]), float(scale_max[0]))
+                    sy = random.uniform(float(scale[1]), float(scale_max[1]))
+                    sz = random.uniform(float(scale[2]), float(scale_max[2]))
+                    scale = [sx, sy, sz]
+
+            if hasattr(self, "Rotation_Range_Checkbox") and self.Rotation_Range_Checkbox.isChecked():
+                rot_max = params.get("rotation_max", None)
+                if rotation and rot_max:
+                    rx = random.uniform(float(rotation[0]), float(rot_max[0]))
+                    ry = random.uniform(float(rotation[1]), float(rot_max[1]))
+                    rz = random.uniform(float(rotation[2]), float(rot_max[2]))
+                    rotation = [rx, ry, rz]
+
+            # --- Distance handling ---
+            if not spacing_changed and actor_label in spawn_dist:
+                distance = float(spawn_dist[actor_label])
+            else:
+                asset_obj = unreal.load_asset(asset_list.get(asset_name))
+                advance = self.ComputePlacementAdvance(previous_actor, asset_obj, params)
+                current_distance += advance
+                if current_distance > total_length:
+                    current_distance = total_length
+                distance = current_distance
+
+            # --- Apply position along spline ---
+            pos_tuple, dir_vec = sample_at_distance(distance)
+            new_loc = to_vector(pos_tuple)
+
+            # --- Apply scatter offset ---
+            if scatter != 0.0:
+                right = (-dir_vec[1], dir_vec[0], 0.0)
+                rmag = math.sqrt(right[0] ** 2 + right[1] ** 2 + right[2] ** 2)
+                if rmag > 1e-6:
+                    right = (right[0] / rmag, right[1] / rmag, right[2] / rmag)
+                else:
+                    right = (1.0, 0.0, 0.0)
+                up = (0.0, 0.0, 1.0)
+                off_r = random.uniform(-scatter, scatter)
+                off_u = random.uniform(-scatter, scatter)
+                new_loc.x += right[0] * off_r + up[0] * off_u
+                new_loc.y += right[1] * off_r + up[1] * off_u
+                new_loc.z += right[2] * off_r + up[2] * off_u
+
+            # --- Rotation and scale ---
+            if rotation:
+                try:
+                    new_rot = unreal.Rotator(float(rotation[0]), float(rotation[1]), float(rotation[2]))
+                except Exception:
+                    new_rot = rotator_from_direction(dir_vec)
+            else:
+                new_rot = rotator_from_direction(dir_vec)
+            new_scale = unreal.Vector(float(scale[0]), float(scale[1]), float(scale[2]))
+
+            # Apply transform
+            new_transform = unreal.Transform(new_loc, new_rot, new_scale)
+            actor.set_actor_transform(new_transform, False, False)
+
+            # --- Cross-type spacing (match Generate) ---
+            try:
+                if previous_actor:
+                    prev_origin, prev_extent = previous_actor.get_actor_bounds(True)
+                    prev_size = max(prev_extent.x, prev_extent.y, prev_extent.z)
+                else:
+                    prev_size = 0.0
+
+                curr_origin, curr_extent = actor.get_actor_bounds(True)
+                curr_size = max(curr_extent.x, curr_extent.y, curr_extent.z)
+                user_spacing = float(params.get("spacing", 0.0))
+
+                step_forward = prev_size + curr_size + user_spacing
+                current_distance += step_forward
+
+                unreal.log(f"[Apply-CrossSpacing] Step = prev {prev_size:.1f} + curr {curr_size:.1f} + spacing {user_spacing:.1f} → total +{step_forward:.1f}")
+            except Exception as e:
+                unreal.log_warning(f"[Apply-CrossSpacing] Failed: {e}")
+
+            previous_actor = actor
+
+        # --- Update stored parameters and distances so reapplying uses current state ---
+        updated_spawn_distances = {}
+        for actor_label in spawn_order:
+            actor_path = spawned_assets.get(actor_label)
             actor = self.GetActorByPath(actor_path)
             if not actor:
                 continue
+            try:
+                actor_loc = actor.get_actor_location()
+                nearest_distance = min(
+                    distances,
+                    key=lambda d: math.dist(actor_loc, to_vector(sample_at_distance(d)[0]))
+                )
+                updated_spawn_distances[actor_label] = nearest_distance
+            except Exception:
+                pass
 
-            params = None
-            for pset in gen_data["Parameters"].values():
-                if pset:  # pick the first match
-                    params = pset
-                    break
-            if not params:
-                continue
+        gen_data["Parameters"] = new_params
+        gen_data["Spawn Distances"] = updated_spawn_distances
+        self.Generation_Log[gen_name] = gen_data
 
-            spacing = float(params.get("spacing", 0.0))
-            scale = params.get("scale", [1.0, 1.0, 1.0])
-            rotation = params.get("rotation", [0.0, 0.0, 0.0])
-
-            # Recalculate spline sample (if spline changed)
-            old_loc = actor.get_actor_location()
-            dist_along = min(distances, key=lambda d: abs(d - old_loc.x))  # quick hack; can be improved
-            new_pos_tuple, new_dir = sample_at_distance(dist_along)
-            new_loc = unreal.Vector(new_pos_tuple[0], new_pos_tuple[1], new_pos_tuple[2])
-            new_rot = unreal.Rotator(float(rotation[0]), float(rotation[1]), float(rotation[2]))
-            new_scl = unreal.Vector(float(scale[0]), float(scale[1]), float(scale[2]))
-
-            new_transform = unreal.Transform(new_loc, new_rot, new_scl)
-            actor.set_actor_transform(new_transform, False, False)
-
-        unreal.log(f"[Apply] Applied parameter and spline updates to {gen_name}.")
+        unreal.log(f"[Apply] Successfully reapplied parameter, scatter, and spline updates to {gen_name}.")
 
     def Generate(self):
         """
@@ -1374,6 +1556,21 @@ class AssetPlacerToolWindow(QWidget):
                 unreal.log_warning(f"[Cross-Type Spacing] Failed: {e}")
 
             previous_actor = trial_actor
+
+            # --- record spawn order + distance used for this actor ---
+            try:
+                actor_label = trial_actor.get_actor_label()
+            except Exception:
+                actor_label = f"{name}_{len(spawned_actors)}"
+
+            if not hasattr(self, "_last_spawn_order"):
+                self._last_spawn_order = []
+            if not hasattr(self, "_last_spawn_distances"):
+                self._last_spawn_distances = {}
+
+            self._last_spawn_order.append(actor_label)
+            self._last_spawn_distances[actor_label] = float(current_distance)
+
             
             # End trial attempts
             if not spawned_success:
@@ -1404,7 +1601,6 @@ class AssetPlacerToolWindow(QWidget):
 
         # End main spawn while loop
         unreal.log(f"[Generate] Completed generation. Remaining total: {total_remaining}")
-
 
 def apply_unreal_palette(app):
     palette = QPalette()
