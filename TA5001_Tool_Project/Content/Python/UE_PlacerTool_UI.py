@@ -43,6 +43,7 @@ class AssetPlacerToolWindow(QWidget):
             #Selected Spline Button
             self.SplineButton = QPushButton("<none>")
             self.SplineButton.setStyleSheet("text-align: left; padding: 4px;")
+            self.SplineButton.setToolTip("Select Spline in level and clicking button will use that spline")
             self.SplineButton.clicked.connect(self.OnSelectSplineClick) #Gets Spline in level
             self.SplineButton.clicked.connect(self.GetSplinePath) #Gets the spline's path data
 
@@ -63,7 +64,9 @@ class AssetPlacerToolWindow(QWidget):
             AssetList_header = QLabel("2. Asset List") #AssetList  Header
             AssetList_header.setStyleSheet("font-weight: bold; font-size:12pt; padding: 2px;")
             self.Random_Checkbox = QCheckBox("Random") #Random Checkbox
+            self.Random_Checkbox.setToolTip("Generates Assets in a Randomised Order")
             self.InSequence_Checkbox = QCheckBox("Sequence") #Sequence Checkbox
+            self.InSequence_Checkbox.setToolTip("Generates Assets in a Sequential Order to the Asset List")
             self.ConnectRandomSequenceToggle()
             header_layout.addWidget(AssetList_header)
             header_layout.addStretch(1)
@@ -87,11 +90,13 @@ class AssetPlacerToolWindow(QWidget):
             #Add File Button
             self.AddFileButton = QPushButton("+")
             self.AddFileButton.setFixedWidth(25)
+            self.AddFileButton.setToolTip("Adds selected assets from content browser")
             self.AddFileButton.clicked.connect(self.OnAddFile)
 
             #Remove File Button
             self.RemoveFileButton = QPushButton("-")
             self.RemoveFileButton.setFixedWidth(25)
+            self.RemoveFileButton.setToolTip("Removes asset from Asset List")
             self.RemoveFileButton.setVisible(False)
             self.RemoveFileButton.clicked.connect(self.OnRemoveFile)
 
@@ -109,6 +114,7 @@ class AssetPlacerToolWindow(QWidget):
             #Delete Generation Button
             self.DeleteGeneration = QPushButton("Delete")
             self.DeleteGeneration.setFixedWidth(75)
+            self.DeleteGeneration.setToolTip("Deletes in level generation and removes from log")
             self.DeleteGeneration.setVisible(False)
             self.DeleteGeneration.clicked.connect(self.Delete)
 
@@ -164,16 +170,19 @@ class AssetPlacerToolWindow(QWidget):
             self.Quantity_spin.setFixedSize(50, 20)
             self.Quantity_spin.setButtonSymbols(self.Quantity_spin.ButtonSymbols.NoButtons)
             self.Quantity_spin.setRange(0, 10000)
+            self.Quantity_spin.setToolTip("Number of this Asset generated")
 
             #Quantity - Secondary "Max" box (hidden until range checked)
             self.Quantity_spin_max = QSpinBox()
             self.Quantity_spin_max.setFixedSize(50, 20)
             self.Quantity_spin_max.setButtonSymbols(self.Quantity_spin_max.ButtonSymbols.NoButtons)
+            self.Quantity_spin_max.setToolTip("Maximum Quantity in range")
             self.Quantity_spin_max.setVisible(False)
 
             #Quantity - Range CheckBox
             self.Quantity_Range_Checkbox = QCheckBox("Range")
             self.Quantity_Range_Checkbox.setFixedHeight(20)
+            self.Quantity_Range_Checkbox.setToolTip("Randomly assigns Quantity from given range")
 
             #Layout for Quantity Row
             Quantity_row = QWidget()
@@ -200,16 +209,19 @@ class AssetPlacerToolWindow(QWidget):
             self.Spacing_double.setFixedSize(50, 20)
             self.Spacing_double.setButtonSymbols(self.Spacing_double.ButtonSymbols.NoButtons)
             self.Spacing_double.setRange(0.00, 10000)
+            self.Spacing_double.setToolTip("Distance between these generated Assets")
 
             #Spacing - Secondary "Max" box (hidden until Range checked)
             self.Spacing_double_max = QDoubleSpinBox()
             self.Spacing_double_max.setFixedSize(50, 20)
             self.Spacing_double_max.setButtonSymbols(self.Spacing_double_max.ButtonSymbols.NoButtons)
+            self.Spacing_double_max.setToolTip("Maximum Distance in range")
             self.Spacing_double_max.setVisible(False)
 
             #Spacing - Range Checkbox
             self.Spacing_Range_Checkbox = QCheckBox("Range")
             self.Spacing_Range_Checkbox.setFixedHeight(20)
+            self.Spacing_Range_Checkbox.setToolTip("Randomly assigns Spacing from given range")
 
             #Layout for Spacing row
             Spacing_Row = QWidget()
@@ -235,6 +247,9 @@ class AssetPlacerToolWindow(QWidget):
             self.Scale_x = QDoubleSpinBox()
             self.Scale_y = QDoubleSpinBox()
             self.Scale_z = QDoubleSpinBox()
+            self.Scale_x.setToolTip("Asset's scale in X axis")
+            self.Scale_y.setToolTip("Asset's scale in Y axis")
+            self.Scale_z.setToolTip("Asset's scale in Z axis")
             for s in [self.Scale_x, self.Scale_y, self.Scale_z]:
                 s.setFixedSize(50, 20)
                 s.setButtonSymbols(s.ButtonSymbols.NoButtons)
@@ -245,6 +260,9 @@ class AssetPlacerToolWindow(QWidget):
             self.Scale_x_max = QDoubleSpinBox()
             self.Scale_y_max = QDoubleSpinBox()
             self.Scale_z_max = QDoubleSpinBox()
+            self.Scale_x_max.setToolTip("Maximum scale in X axis in range")
+            self.Scale_y_max.setToolTip("Maximum scale in Y axis in range")
+            self.Scale_z_max.setToolTip("Maximum scale in Z axis in range")
             for s in [self.Scale_x_max, self.Scale_y_max, self.Scale_z_max]:
                 s.setFixedSize(50, 20)
                 s.setButtonSymbols(s.ButtonSymbols.NoButtons)
@@ -254,6 +272,7 @@ class AssetPlacerToolWindow(QWidget):
             #Scale Range Checkbox
             self.Scale_Range_Checkbox = QCheckBox("Range")
             self.Scale_Range_Checkbox.setFixedHeight(20)
+            self.Scale_Range_Checkbox.setToolTip("Randomly assigns Scale from given range")
 
             #Scale Row (Always Visible)
             Scale_Row = QWidget()
@@ -287,6 +306,9 @@ class AssetPlacerToolWindow(QWidget):
             self.Rotation_x = QDoubleSpinBox()
             self.Rotation_y = QDoubleSpinBox()
             self.Rotation_z = QDoubleSpinBox()
+            self.Rotation_x.setToolTip("Asset's rotation in X axis")
+            self.Rotation_y.setToolTip("Asset's rotation in Y axis")
+            self.Rotation_z.setToolTip("Asset's rotation in Z axis")  
             for r in [self.Rotation_x, self.Rotation_y, self.Rotation_z]:
                 r.setFixedSize(50, 20)
                 r.setButtonSymbols(r.ButtonSymbols.NoButtons)
@@ -297,6 +319,9 @@ class AssetPlacerToolWindow(QWidget):
             self.Rotation_x_max = QDoubleSpinBox()
             self.Rotation_y_max = QDoubleSpinBox()
             self.Rotation_z_max = QDoubleSpinBox()
+            self.Rotation_x_max.setToolTip("Maximum rotation in X axis in range")
+            self.Rotation_y_max.setToolTip("Maximum rotation in Y axis in range")
+            self.Rotation_z_max.setToolTip("Maximum rotation in Z axis in range")
             for r in [self.Rotation_x_max, self.Rotation_y_max, self.Rotation_z_max]:
                 r.setFixedSize(50, 20)
                 r.setButtonSymbols(r.ButtonSymbols.NoButtons)
@@ -306,6 +331,7 @@ class AssetPlacerToolWindow(QWidget):
             #Range Checkbox
             self.Rotation_Range_Checkbox = QCheckBox("Range")
             self.Rotation_Range_Checkbox.setFixedHeight(20)
+            self.Rotation_Range_Checkbox.setToolTip("Randomly assigns Rotation from given range")
 
             #Rotation Row (Always Visible)
             Rotation_Row = QWidget()
@@ -339,6 +365,7 @@ class AssetPlacerToolWindow(QWidget):
             self.Scatter_double = QDoubleSpinBox()
             self.Scatter_double.setFixedSize(50, 20)
             self.Scatter_double.setButtonSymbols(self.Scatter_double.ButtonSymbols.NoButtons)
+            self.Scatter_double.setToolTip("Applys Scatter in X and Y offset relative to spline")
             Form.addRow("Scatter:", self.Scatter_double)
 
             #Dock Parameter 
@@ -348,6 +375,15 @@ class AssetPlacerToolWindow(QWidget):
             self.Param_Dock.setWidget(Param_Container)
             self.mainwindow.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.Param_Dock)
 
+            #Set Parameters Invisible until selected
+            for box in [self.Quantity_spin, self.Quantity_Range_Checkbox, 
+                        self.Spacing_double, self.Spacing_Range_Checkbox,
+                        self.Scale_x, self.Scale_y, self.Scale_z, self.Scale_Range_Checkbox,
+                        self.Rotation_x, self.Rotation_y, self.Rotation_z, self.Rotation_Range_Checkbox,
+                        self.Scatter_double, self.Scale_Range_Checkbox]:
+                box.setEnabled(False)
+                box.setStyleSheet("color: gray; background-color: #2a2a2a;")
+
             #Connect Signals: When an Asset is Clicked in Asset List, Update Parameter List
             #Store and save parameters for each asset
             self.AssetList_Widget.currentItemChanged.connect(self.OnAssetSelected)
@@ -355,10 +391,12 @@ class AssetPlacerToolWindow(QWidget):
             self.Quantity_spin.valueChanged.connect(self.OnParameterChanged)
             self.Quantity_spin_max.valueChanged.connect(self.OnParameterChanged)
             self.Quantity_Range_Checkbox.checkStateChanged.connect(self.OnParameterChanged)
+            self.Quantity_Range_Checkbox.checkStateChanged.connect(self.ParametersToolTipToggle)
 
             self.Spacing_double.valueChanged.connect(self.OnParameterChanged)
             self.Spacing_double_max.valueChanged.connect(self.OnParameterChanged)
             self.Spacing_Range_Checkbox.checkStateChanged.connect(self.OnParameterChanged)
+            self.Spacing_Range_Checkbox.checkStateChanged.connect(self.ParametersToolTipToggle)
 
             self.Scale_x.valueChanged.connect(self.OnParameterChanged)
             self.Scale_y.valueChanged.connect(self.OnParameterChanged)
@@ -367,6 +405,7 @@ class AssetPlacerToolWindow(QWidget):
             self.Scale_y_max.valueChanged.connect(self.OnParameterChanged)
             self.Scale_z_max.valueChanged.connect(self.OnParameterChanged)
             self.Scale_Range_Checkbox.checkStateChanged.connect(self.OnParameterChanged)
+            self.Scale_Range_Checkbox.checkStateChanged.connect(self.ParametersToolTipToggle)
 
             self.Rotation_x.valueChanged.connect(self.OnParameterChanged)
             self.Rotation_y.valueChanged.connect(self.OnParameterChanged)
@@ -375,6 +414,7 @@ class AssetPlacerToolWindow(QWidget):
             self.Rotation_y_max.valueChanged.connect(self.OnParameterChanged)
             self.Rotation_z_max.valueChanged.connect(self.OnParameterChanged)
             self.Rotation_Range_Checkbox.checkStateChanged.connect(self.OnParameterChanged)
+            self.Rotation_Range_Checkbox.checkStateChanged.connect(self.ParametersToolTipToggle)
 
             self.Scatter_double.valueChanged.connect(self.OnParameterChanged)
 
@@ -387,8 +427,12 @@ class AssetPlacerToolWindow(QWidget):
 
             self.GenerateButton = QPushButton("Generate")
             self.GenerateButton.clicked.connect(self.Generate)
+            self.GenerateButton.setToolTip("Generates assets in Asset List following parameters on the given Spline")
+
             self.ApplyButton = QPushButton("Apply")
             self.ApplyButton.clicked.connect(self.Apply)
+            self.ApplyButton.setToolTip("Applies changes to Spline and Parameters (except Quantity) to selected generation")
+            self.ApplyButton.setVisible(False)
 
             for button in [self.GenerateButton, self.ApplyButton]:
                 button.setFixedWidth(100)
@@ -511,9 +555,59 @@ class AssetPlacerToolWindow(QWidget):
         self.Random_Checkbox.checkStateChanged.connect(onRandomToggled)
         self.InSequence_Checkbox.checkStateChanged.connect(onInSequenceToggled)
 
+    def ParametersToolTipToggle(self):
+        params = self.Asset_Parameters
+        current_item = self.AssetList_Widget.currentItem()
+        if not current_item: return
+        asset_name = current_item.text()
+        if not asset_name: return
+
+        if params[asset_name]["quantity_range"]:
+            self.Quantity_spin.setToolTip("Minimum Quantity in range")
+        else:
+            self.Quantity_spin.setToolTip("Number of this Asset generated")
+        
+        if params[asset_name]["spacing_range"]:
+            self.Spacing_double.setToolTip("Minimum Distance in range")
+        else:
+            self.Spacing_double.setToolTip("Distance between these generated Assets")
+
+        if params[asset_name]["scale_range"]:
+            self.Scale_x.setToolTip("Minimum scale in X axis in range")
+            self.Scale_y.setToolTip("Minimum scale in Y axis in range")
+            self.Scale_z.setToolTip("Minimum scale in Z axis in range")
+        else:
+            self.Scale_x.setToolTip("Asset's scale in X axis")
+            self.Scale_y.setToolTip("Asset's scale in Y axis")
+            self.Scale_z.setToolTip("Asset's scale in Z axis")
+
+        if params[asset_name]["rotation_range"]:
+            self.Rotation_x.setToolTip("Minimum rotation in X axis in range")
+            self.Rotation_y.setToolTip("Minimum rotation in Y axis in range")
+            self.Rotation_z.setToolTip("Minimum rotation in Z axis in range")
+        else:
+            self.Rotation_x.setToolTip("Asset's rotation in X axis")
+            self.Rotation_y.setToolTip("Asset's rotation in Y axis")
+            self.Rotation_z.setToolTip("Asset's rotation in Z axis")      
+
     def OnAssetSelected(self, current, previous):
         if not current:
             return
+
+        boxes = [self.Quantity_spin, self.Quantity_Range_Checkbox, 
+                    self.Spacing_double, self.Spacing_Range_Checkbox,
+                    self.Scale_x, self.Scale_y, self.Scale_z, self.Scale_Range_Checkbox,
+                    self.Rotation_x, self.Rotation_y, self.Rotation_z, self.Rotation_Range_Checkbox,
+                    self.Scatter_double, self.Scale_Range_Checkbox]
+
+        if current:
+            for box in boxes:
+                box.setEnabled(True)
+                box.setStyleSheet("")
+        else:
+            for box in boxes:
+                box.setEnabled(False)
+                box.setStyleSheet("color: gray; background-color: #2a2a2a;")
 
         asset_name = current.text()
         self.Param_header.setText(f"3. Selected Asset: {asset_name}")
@@ -627,6 +721,18 @@ class AssetPlacerToolWindow(QWidget):
             self.AssetList_Widget.takeItem(self.AssetList_Widget.row(current))
         self.UpdateRemoveButtonVisibility()
 
+        boxes = [self.Quantity_spin, self.Quantity_Range_Checkbox, 
+                    self.Spacing_double, self.Spacing_Range_Checkbox,
+                    self.Scale_x, self.Scale_y, self.Scale_z, self.Scale_Range_Checkbox,
+                    self.Rotation_x, self.Rotation_y, self.Rotation_z, self.Rotation_Range_Checkbox,
+                    self.Scatter_double, self.Scale_Range_Checkbox]
+
+        if not self.AssetList_Widget.count() > 0:
+            self.Param_header.setText("3. Selected Asset: <none>")
+            for box in boxes:
+                box.setEnabled(False)
+                box.setStyleSheet("color: gray; background-color: #2a2a2a;")
+
     def UpdateGenerationLog(self, spawned_actors, assets, asset_file_paths):
         """
         Logs all data from a completed generation into self.Generation_Log.
@@ -722,6 +828,7 @@ class AssetPlacerToolWindow(QWidget):
             self.GenerationLogHeader.setVisible(has_logs)
             self.GenerationLogList.setVisible(has_logs)
             self.DeleteGeneration.setVisible(has_logs)
+            self.ApplyButton.setVisible(has_logs)
 
     def OnGenerationSelected(self):
         '''Load selected generation's data back into UI fields.'''
@@ -851,6 +958,7 @@ class AssetPlacerToolWindow(QWidget):
         self.GenerationLogHeader.setVisible(has_logs)
         self.GenerationLogList.setVisible(has_logs)
         self.DeleteGeneration.setVisible(has_logs)
+        self.ApplyButton.setVisible(has_logs)
 
         unreal.log(f"[Delete] Deleted {destroyed_count} actors from {selected_gen}. Remaining generations: {len(self.Generation_Log)}.")
 
