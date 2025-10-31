@@ -1875,5 +1875,3 @@ def launchWindow():
     AssetPlacerToolWindow.window.setWindowTitle("Procedural Asset Placer Tool")
     AssetPlacerToolWindow.window.setObjectName("ToolWindow")
     unreal.parent_external_window_to_slate(AssetPlacerToolWindow.window.winId())
-
-launchWindow()
