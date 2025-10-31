@@ -50,7 +50,7 @@ def create_main_menu_section():
         tool_tip="Launch the Asset Placer Tool",
         command_type=unreal.ToolMenuStringCommandType.PYTHON,
         custom_command_type="",
-        command_string="from UE_PlacerTool_UI import launchWindow; launchWindow()"  # command to run
+        command_string="from UE_PlacerTool import launchWindow; launchWindow()"  # command to run
     )
 
     # Add the entry to the section
