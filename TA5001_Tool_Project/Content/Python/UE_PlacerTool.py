@@ -796,12 +796,16 @@ class AssetPlacerToolWindow(QWidget):
                 self.Quantity_spin.setStyleSheet("color: gray; background-color: #2a2a2a;")
                 self.Quantity_Range_Checkbox.setEnabled(False)
                 self.Quantity_Range_Checkbox.setStyleSheet("color: gray; background-color: #2a2a2a;")
+                self.Quantity_spin_max.setEnabled(False)
+                self.Quantity_spin_max.setStyleSheet("color: gray; background-color: #2a2a2a;")
             else:
                 # ensure they’re enabled if no generation is selected
                 self.Quantity_spin.setEnabled(True)
                 self.Quantity_spin.setStyleSheet("")
                 self.Quantity_Range_Checkbox.setEnabled(True)
                 self.Quantity_Range_Checkbox.setStyleSheet("")
+                self.Quantity_spin_max.setEnabled(True)
+                self.Quantity_spin_max.setStyleSheet("")
                 self.Random_Checkbox.setEnabled(True)
                 self.Random_Checkbox.setStyleSheet("")
                 self.InSequence_Checkbox.setEnabled(True)
