@@ -327,6 +327,8 @@ class AssetPlacerToolWindow(QWidget):
         self.Quantity_spin_max.setToolTip("Maximum Quantity in range")
         self.Quantity_spin_max.setVisible(False)
 
+        self.Quantity_spin.setToolTip("Number of this Asset generated")
+
         self.Quantity_Range_Checkbox = QCheckBox("Range")
         self.Quantity_Range_Checkbox.setFixedHeight(20)
         self.Quantity_Range_Checkbox.setToolTip("Randomly assigns Quantity from given range")
@@ -354,6 +356,8 @@ class AssetPlacerToolWindow(QWidget):
         )
         self.Spacing_double_max.setToolTip("Maximum Distance in range")
         self.Spacing_double_max.setVisible(False)
+
+        self.Spacing_double.setToolTip("Distance between these generated Assets")
 
         self.Spacing_Range_Checkbox = QCheckBox("Range")
         self.Spacing_Range_Checkbox.setFixedHeight(20)
@@ -389,6 +393,14 @@ class AssetPlacerToolWindow(QWidget):
             [self.Scale_x_max, self.Scale_y_max, self.Scale_z_max],
             rng=(0.01, 100.0), value=1.0
         )
+
+        self.Scale_x.setToolTip("Asset's scale in X axis")
+        self.Scale_y.setToolTip("Asset's scale in Y axis")
+        self.Scale_z.setToolTip("Asset's scale in Z axis")
+
+        self.Scale_x_max.setToolTip("Maximum scale in X axis in range")
+        self.Scale_y_max.setToolTip("Maximum scale in Y axis in range")
+        self.Scale_z_max.setToolTip("Maximum scale in Z axis in range")
 
         self.Scale_Range_Checkbox = QCheckBox("Range")
         self.Scale_Range_Checkbox.setFixedHeight(20)
@@ -434,6 +446,14 @@ class AssetPlacerToolWindow(QWidget):
             [self.Rotation_x_max, self.Rotation_y_max, self.Rotation_z_max],
             rng=(-360.0, 360.0), value=0.0
         )
+
+        self.Rotation_x.setToolTip("Asset's rotation in X axis")
+        self.Rotation_y.setToolTip("Asset's rotation in Y axis")
+        self.Rotation_z.setToolTip("Asset's rotation in Z axis")  
+
+        self.Rotation_x_max.setToolTip("Maximum rotation in X axis in range")
+        self.Rotation_y_max.setToolTip("Maximum rotation in Y axis in range")
+        self.Rotation_z_max.setToolTip("Maximum rotation in Z axis in range")
 
         self.Rotation_Range_Checkbox = QCheckBox("Range")
         self.Rotation_Range_Checkbox.setFixedHeight(20)
